@@ -1,6 +1,6 @@
 // =============================================
 // DISCORD BÀI CÀO 3 LÁ BOT
-// Lệnh: .cao | Tự động ping 24/7
+// Lệnh: .cao .bank .money .daily | Tự động ping 24/7
 // =============================================
 
 const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
@@ -139,7 +139,7 @@ function deductMoney(userId, amount) {
 // ========== BOT EVENTS ==========
 client.once('ready', () => {
     console.log(`🤖 ${client.user.tag} - Bot Bài Cào Online!`);
-    client.user.setPresence({ activities: [{ name: '.cao | Bài Cào 3 Lá', type: 'PLAYING' }], status: 'online' });
+    client.user.setPresence({ activities: [{ name: '.cao .bank | Bài Cào 3 Lá', type: 'PLAYING' }], status: 'online' });
 });
 
 client.on('messageCreate', async (message) => {
@@ -154,7 +154,7 @@ client.on('messageCreate', async (message) => {
             .setDescription('Chơi bài cào với bot!')
             .addFields(
                 { name: '🎮 Lệnh chơi', value: '`.cao <tiền_cược>` - Chơi bài cào' },
-                { name: '💰 Lệnh tiền', value: '`.money` - Xem tiền\n`.daily` - Nhận 5k/ngày' },
+                { name: '💰 Lệnh tiền', value: '`.money` - Xem tiền\n`.daily` - Nhận 5k/ngày\n`.bank <@user> <số_tiền>` - Chuyển tiền cho người khác' },
                 { name: '📋 Luật chơi', value: 'Bài cào 3 lá, điểm 0-9\nNút (9 điểm) = THẮNG\nSáp > Liêng > 3 Tây > Điểm' }
             );
         return message.reply({ embeds: [embed] });
@@ -175,6 +175,63 @@ client.on('messageCreate', async (message) => {
         addMoney(message.author.id, 5000);
         const money = getMoney(message.author.id);
         return message.reply(`🎁 Nhận **5,000 VNĐ** thành công!\n💰 Số dư: **${money.toLocaleString('vi-VN')} VNĐ**`);
+    }
+
+    // ========== BANK (CHUYỂN TIỀN) ==========
+    if (content.startsWith('.bank')) {
+        const args = message.content.split(' ');
+        args.shift(); // Bỏ ".bank"
+        
+        // Kiểm tra có mention user không
+        const targetUser = message.mentions.users.first();
+        if (!targetUser) {
+            return message.reply('❌ Vui lòng **tag người nhận**!\n`.bank @user <số_tiền>`');
+        }
+        
+        // Không cho chuyển cho chính mình
+        if (targetUser.id === message.author.id) {
+            return message.reply('❌ Không thể chuyển tiền cho chính mình!');
+        }
+        
+        // Không cho chuyển cho bot
+        if (targetUser.bot) {
+            return message.reply('❌ Không thể chuyển tiền cho bot!');
+        }
+        
+        // Lấy số tiền (bỏ mention)
+        const mentionIndex = args.findIndex(a => a.includes(targetUser.id));
+        if (mentionIndex !== -1) args.splice(mentionIndex, 1);
+        
+        const amount = parseInt(args[0]);
+        
+        if (isNaN(amount) || amount < 100) {
+            return message.reply('❌ Số tiền chuyển tối thiểu **100 VNĐ**!\n`.bank @user <số_tiền>`');
+        }
+        
+        // Kiểm tra số dư
+        if (!deductMoney(message.author.id, amount)) {
+            const currentMoney = getMoney(message.author.id);
+            return message.reply(`❌ Không đủ tiền!\n💰 Số dư của bạn: **${currentMoney.toLocaleString('vi-VN')} VNĐ**\n💸 Cần chuyển: **${amount.toLocaleString('vi-VN')} VNĐ**`);
+        }
+        
+        // Chuyển tiền
+        addMoney(targetUser.id, amount);
+        
+        const senderMoney = getMoney(message.author.id);
+        const receiverMoney = getMoney(targetUser.id);
+        
+        const embed = new EmbedBuilder()
+            .setColor('#0099FF')
+            .setTitle('🏦 Chuyển Tiền Thành Công!')
+            .setDescription(`${message.author} ──💸 **${amount.toLocaleString('vi-VN')} VNĐ**──> ${targetUser}`)
+            .addFields(
+                { name: `💰 ${message.author.username}`, value: `Còn: **${senderMoney.toLocaleString('vi-VN')} VNĐ**`, inline: true },
+                { name: `💰 ${targetUser.username}`, value: `Có: **${receiverMoney.toLocaleString('vi-VN')} VNĐ**`, inline: true }
+            )
+            .setFooter({ text: '🏦 Ngân hàng Bot Bài Cào' })
+            .setTimestamp();
+        
+        return message.reply({ embeds: [embed] });
     }
 
     // ========== CHƠI BÀI CÀO ==========
@@ -267,5 +324,5 @@ client.on('messageCreate', async (message) => {
 // ========== LOGIN ==========
 client.login(CONFIG.token).then(() => {
     console.log('🃏 Bot Bài Cào 3 Lá đã sẵn sàng!');
-    console.log('📋 Lệnh: .cao .money .daily .help');
+    console.log('📋 Lệnh: .cao .money .daily .bank .help');
 }).catch(console.error); 
