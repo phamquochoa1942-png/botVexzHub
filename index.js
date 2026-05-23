@@ -1,15 +1,18 @@
 // =============================================
-// DISCORD BÀI CÀO 3 LÁ BOT
+// DISCORD BÀI CÀO 3 LÁ BOT - TỰ ĐỘNG LƯU TIỀN
 // Lệnh: .cao .bank .money .daily | Tự động ping 24/7
 // =============================================
 
 const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
 
 const CONFIG = {
     token: process.env.TOKEN || "YOUR_BOT_TOKEN_HERE",
     prefix: ".",
-    port: process.env.PORT || 3000
+    port: process.env.PORT || 3000,
+    dataFile: path.join(__dirname, 'userdata.json') // File lưu tiền
 };
 
 const client = new Client({
@@ -73,7 +76,7 @@ function calculateScore(cards) {
         }
     }
     
-    return total % 10; // Chỉ lấy hàng đơn vị (0-9)
+    return total % 10;
 }
 
 function getScoreName(score) {
@@ -96,15 +99,12 @@ function checkSpecial(cards) {
     const values = cards.map(c => c.value);
     const uniqueValues = new Set(values);
     
-    // Sáp (3 lá giống nhau)
     if (uniqueValues.size === 1) return 'SÁP 🔥';
     
-    // Liêng (3 lá liên tiếp)
     const valueOrder = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
     const indices = values.map(v => valueOrder.indexOf(v)).sort((a, b) => a - b);
     if (indices[2] - indices[1] === 1 && indices[1] - indices[0] === 1) return 'LIÊNG ✨';
     
-    // 3 Tây (J, Q, K)
     if (values.every(v => ['J', 'Q', 'K'].includes(v))) return '3 TÂY 👑';
     
     return null;
@@ -115,30 +115,85 @@ function getCardDisplay(card) {
     return `${colors[card.suit]}${card.value}${card.suit}`;
 }
 
-// ========== DATABASE TIỀN ẢO ==========
-const userMoney = new Map();
+// ========== DATABASE TIỀN ẢO (TỰ ĐỘNG LƯU VÀO FILE) ==========
+let userMoney = new Map();
+
+// Tải dữ liệu từ file khi bot khởi động
+function loadData() {
+    try {
+        if (fs.existsSync(CONFIG.dataFile)) {
+            const rawData = fs.readFileSync(CONFIG.dataFile, 'utf8');
+            const parsedData = JSON.parse(rawData);
+            userMoney = new Map(Object.entries(parsedData));
+            console.log(`✅ Đã tải dữ liệu ${userMoney.size} người dùng từ file!`);
+        } else {
+            console.log('📁 Chưa có file dữ liệu, tạo mới...');
+            saveData();
+        }
+    } catch (error) {
+        console.error('❌ Lỗi tải dữ liệu:', error.message);
+        userMoney = new Map();
+    }
+}
+
+// Lưu dữ liệu vào file
+function saveData() {
+    try {
+        const obj = Object.fromEntries(userMoney);
+        fs.writeFileSync(CONFIG.dataFile, JSON.stringify(obj, null, 2), 'utf8');
+    } catch (error) {
+        console.error('❌ Lỗi lưu dữ liệu:', error.message);
+    }
+}
+
+// Tự động lưu mỗi 30 giây
+setInterval(() => {
+    if (userMoney.size > 0) {
+        saveData();
+        console.log(`💾 Đã tự động lưu ${userMoney.size} người dùng`);
+    }
+}, 30000);
+
+// Lưu khi bot tắt
+process.on('SIGINT', () => {
+    console.log('🔄 Đang lưu dữ liệu trước khi tắt...');
+    saveData();
+    process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+    console.log('🔄 Đang lưu dữ liệu trước khi tắt...');
+    saveData();
+    process.exit(0);
+});
 
 function getMoney(userId) {
     if (!userMoney.has(userId)) {
-        userMoney.set(userId, 10000); // Tặng 10k khởi đầu
+        userMoney.set(userId, 10000);
+        saveData(); // Lưu ngay khi tạo user mới
+        console.log(`🆕 Người dùng mới: ${userId} - Tặng 10,000 VNĐ`);
     }
     return userMoney.get(userId);
 }
 
 function addMoney(userId, amount) {
-    userMoney.set(userId, getMoney(userId) + amount);
+    const current = getMoney(userId);
+    userMoney.set(userId, current + amount);
+    saveData(); // Lưu ngay sau khi thay đổi
 }
 
 function deductMoney(userId, amount) {
     const current = getMoney(userId);
     if (current < amount) return false;
     userMoney.set(userId, current - amount);
+    saveData(); // Lưu ngay sau khi thay đổi
     return true;
 }
 
 // ========== BOT EVENTS ==========
 client.once('ready', () => {
     console.log(`🤖 ${client.user.tag} - Bot Bài Cào Online!`);
+    loadData(); // Tải dữ liệu khi bot khởi động
     client.user.setPresence({ activities: [{ name: '.cao .bank | Bài Cào 3 Lá', type: 'PLAYING' }], status: 'online' });
 });
 
@@ -154,8 +209,9 @@ client.on('messageCreate', async (message) => {
             .setDescription('Chơi bài cào với bot!')
             .addFields(
                 { name: '🎮 Lệnh chơi', value: '`.cao <tiền_cược>` - Chơi bài cào' },
-                { name: '💰 Lệnh tiền', value: '`.money` - Xem tiền\n`.daily` - Nhận 5k/ngày\n`.bank <@user> <số_tiền>` - Chuyển tiền cho người khác' },
-                { name: '📋 Luật chơi', value: 'Bài cào 3 lá, điểm 0-9\nNút (9 điểm) = THẮNG\nSáp > Liêng > 3 Tây > Điểm' }
+                { name: '💰 Lệnh tiền', value: '`.money` - Xem tiền\n`.daily` - Nhận 5k/ngày\n`.bank <@user> <số_tiền>` - Chuyển tiền cho người khác\n`.top` - Xem top giàu' },
+                { name: '📋 Luật chơi', value: 'Bài cào 3 lá, điểm 0-9\nNút (9 điểm) = THẮNG\nSáp > Liêng > 3 Tây > Điểm' },
+                { name: '💾 Lưu dữ liệu', value: '✅ Tiền tự động lưu vào file\n✅ Không sợ mất khi bot restart' }
             );
         return message.reply({ embeds: [embed] });
     }
@@ -170,6 +226,32 @@ client.on('messageCreate', async (message) => {
         return message.reply({ embeds: [embed] });
     }
 
+    // ========== TOP GIÀU ==========
+    if (content === '.top') {
+        const sorted = [...userMoney.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10);
+        
+        let ranking = '';
+        for (let i = 0; i < sorted.length; i++) {
+            const [userId, money] = sorted[i];
+            const user = await client.users.fetch(userId).catch(() => null);
+            const name = user ? user.username : 'Unknown';
+            ranking += `**${i + 1}.** ${name} - 💰 ${money.toLocaleString('vi-VN')} VNĐ\n`;
+        }
+        
+        if (!ranking) ranking = 'Chưa có ai chơi!';
+        
+        const embed = new EmbedBuilder()
+            .setColor('#FFD700')
+            .setTitle('🏆 Top 10 Người Chơi Giàu Nhất')
+            .setDescription(ranking)
+            .setFooter({ text: `Tổng người chơi: ${userMoney.size}` })
+            .setTimestamp();
+        
+        return message.reply({ embeds: [embed] });
+    }
+
     // ========== DAILY ==========
     if (content === '.daily') {
         addMoney(message.author.id, 5000);
@@ -180,25 +262,21 @@ client.on('messageCreate', async (message) => {
     // ========== BANK (CHUYỂN TIỀN) ==========
     if (content.startsWith('.bank')) {
         const args = message.content.split(' ');
-        args.shift(); // Bỏ ".bank"
+        args.shift();
         
-        // Kiểm tra có mention user không
         const targetUser = message.mentions.users.first();
         if (!targetUser) {
             return message.reply('❌ Vui lòng **tag người nhận**!\n`.bank @user <số_tiền>`');
         }
         
-        // Không cho chuyển cho chính mình
         if (targetUser.id === message.author.id) {
             return message.reply('❌ Không thể chuyển tiền cho chính mình!');
         }
         
-        // Không cho chuyển cho bot
         if (targetUser.bot) {
             return message.reply('❌ Không thể chuyển tiền cho bot!');
         }
         
-        // Lấy số tiền (bỏ mention)
         const mentionIndex = args.findIndex(a => a.includes(targetUser.id));
         if (mentionIndex !== -1) args.splice(mentionIndex, 1);
         
@@ -208,13 +286,11 @@ client.on('messageCreate', async (message) => {
             return message.reply('❌ Số tiền chuyển tối thiểu **100 VNĐ**!\n`.bank @user <số_tiền>`');
         }
         
-        // Kiểm tra số dư
         if (!deductMoney(message.author.id, amount)) {
             const currentMoney = getMoney(message.author.id);
             return message.reply(`❌ Không đủ tiền!\n💰 Số dư của bạn: **${currentMoney.toLocaleString('vi-VN')} VNĐ**\n💸 Cần chuyển: **${amount.toLocaleString('vi-VN')} VNĐ**`);
         }
         
-        // Chuyển tiền
         addMoney(targetUser.id, amount);
         
         const senderMoney = getMoney(message.author.id);
@@ -228,7 +304,7 @@ client.on('messageCreate', async (message) => {
                 { name: `💰 ${message.author.username}`, value: `Còn: **${senderMoney.toLocaleString('vi-VN')} VNĐ**`, inline: true },
                 { name: `💰 ${targetUser.username}`, value: `Có: **${receiverMoney.toLocaleString('vi-VN')} VNĐ**`, inline: true }
             )
-            .setFooter({ text: '🏦 Ngân hàng Bot Bài Cào' })
+            .setFooter({ text: '🏦 Ngân hàng Bot Bài Cào | Tự động lưu' })
             .setTimestamp();
         
         return message.reply({ embeds: [embed] });
@@ -247,7 +323,6 @@ client.on('messageCreate', async (message) => {
             return message.reply('❌ Không đủ tiền!\n💰 Dùng `.daily` để nhận thêm');
         }
 
-        // Tạo bộ bài
         const game = new CardGame();
         const playerCards = game.drawHand(3);
         const botCards = game.drawHand(3);
@@ -257,16 +332,13 @@ client.on('messageCreate', async (message) => {
         const playerSpecial = checkSpecial(playerCards);
         const botSpecial = checkSpecial(botCards);
 
-        // Tạo embed hiển thị
         const playerDisplay = playerCards.map(c => getCardDisplay(c)).join(' ');
         const botDisplay = botCards.map(c => getCardDisplay(c)).join(' ');
 
-        // Xác định kết quả
         let result = '';
         let color = '';
         let winAmount = 0;
 
-        // Ưu tiên đặc biệt trước
         if (playerSpecial && !botSpecial) {
             result = 'THẮNG';
             color = '#FFD700';
@@ -276,7 +348,6 @@ client.on('messageCreate', async (message) => {
             color = '#FF0000';
             winAmount = 0;
         } else if (playerSpecial && botSpecial) {
-            // Cùng đặc biệt → so sánh
             if (playerSpecial === botSpecial) {
                 result = 'HÒA';
                 color = '#FFFF00';
@@ -287,7 +358,6 @@ client.on('messageCreate', async (message) => {
                 winAmount = result === 'THẮNG' ? bet * 2 : 0;
             }
         } else {
-            // So điểm
             if (playerScore > botScore) {
                 result = 'THẮNG';
                 color = '#FFD700';
@@ -303,7 +373,6 @@ client.on('messageCreate', async (message) => {
             }
         }
 
-        // Cập nhật tiền
         addMoney(message.author.id, winAmount);
 
         const embed = new EmbedBuilder()
@@ -315,7 +384,7 @@ client.on('messageCreate', async (message) => {
                 { name: `🤖 Bot`, value: `${botDisplay}\n${botSpecial ? `**${botSpecial}** + ` : ''}${getScoreName(botScore)}`, inline: true },
                 { name: '💰 Kết quả', value: winAmount > 0 ? `+ **${winAmount.toLocaleString('vi-VN')} VNĐ**` : 'Mất cược', inline: false }
             )
-            .setFooter({ text: `Số dư: ${getMoney(message.author.id).toLocaleString('vi-VN')} VNĐ` });
+            .setFooter({ text: `Số dư: ${getMoney(message.author.id).toLocaleString('vi-VN')} VNĐ | Tự động lưu 💾` });
 
         return message.reply({ embeds: [embed] });
     }
@@ -324,5 +393,7 @@ client.on('messageCreate', async (message) => {
 // ========== LOGIN ==========
 client.login(CONFIG.token).then(() => {
     console.log('🃏 Bot Bài Cào 3 Lá đã sẵn sàng!');
-    console.log('📋 Lệnh: .cao .money .daily .bank .help');
+    console.log('📋 Lệnh: .cao .money .daily .bank .top .help');
+    console.log('💾 Tự động lưu tiền vào file userdata.json');
+    console.log('🔄 Tự động lưu mỗi 30 giây + khi tắt bot');
 }).catch(console.error); 
