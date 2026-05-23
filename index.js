@@ -1,132 +1,271 @@
-const { Client, GatewayIntentBits, SlashCommandBuilder, REST, Routes } = require('discord.js');
-const express = require('express');
+// =============================================
+// DISCORD BÀI CÀO 3 LÁ BOT
+// Lệnh: .cao | Tự động ping 24/7
+// =============================================
 
-// --- CẤU HÌNH WEB SERVER ĐỂ TREO TRÊN RENDER 24/7 ---
-const app = express();
-const PORT = process.env.PORT || 3000;
+const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const http = require('http');
 
-app.get('/', (req, res) => {
-    res.send('🤖 Bot đang chạy online 24/7!');
-});
+const CONFIG = {
+    token: process.env.TOKEN || "YOUR_BOT_TOKEN_HERE",
+    prefix: ".",
+    port: process.env.PORT || 3000
+};
 
-app.listen(PORT, () => {
-    console.log(`💻 Web Server đang chạy trên port ${PORT}`);
-});
-
-// --- CẤU HÌNH DISCORD BOT ---
 const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
-    ]
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
 });
 
-// Biến toàn cục để lưu bộ đếm thời gian spam
-let spamIntervals = {};
+// ========== HTTP SERVER ==========
+http.createServer((req, res) => {
+    res.writeHead(200);
+    res.end('OK');
+}).listen(CONFIG.port);
 
-// --- ĐĂNG KÝ LỆNH GẠCH CHÉO (SLASH COMMANDS) ---
-const commands = [
-    new SlashCommandBuilder()
-        .setName('spam')
-        .setDescription('Kích nổ spam tin nhắn')
-        .addStringOption(option => 
-            option.setName('noidung')
-                .setDescription('Nhập nội dung muốn spam')
-                .setRequired(true))
-        .addIntegerOption(option =>
-            option.setName('thoigian')
-                .setDescription('Chọn thời gian giãn cách giữa các tin nhắn')
-                .setRequired(false)
-                // Tạo menu lựa chọn từ 1 giây đến 1 giờ
-                .addChoices(
-                    { name: '1 giây', value: 1000 },
-                    { name: '3 giây', value: 3000 },
-                    { name: '5 giây', value: 5000 },
-                    { name: '10 giây', value: 10000 },
-                    { name: '30 giây', value: 30000 },
-                    { name: '1 phút', value: 60000 },
-                    { name: '5 phút', value: 300000 },
-                    { name: '10 phút', value: 600000 },
-                    { name: '30 phút', value: 1800000 },
-                    { name: '1 giờ', value: 3600000 }
-                ))
-        .setIntegrationTypes([0, 1]) // Đi theo tài khoản qua server khác
-        .setContexts([0, 1, 2]),
+// ========== BỘ BÀI ==========
+const SUITS = ['♠', '♥', '♦', '♣'];
+const VALUES = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 
-    new SlashCommandBuilder()
-        .setName('stop')
-        .setDescription('Dừng spam khẩn cấp')
-        .setIntegrationTypes([0, 1])
-        .setContexts([0, 1, 2])
-];
-
-// --- GỬI LỆNH LÊN DISCORD APIS ---
-client.once('ready', async () => {
-    console.log(`✅ Bot ${client.user.tag} đã sẵn sàng xuất kích!`);
-    
-    const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
-    try {
-        console.log('🔄 Đang cập nhật hệ thống lệnh gạch chéo toàn cầu...');
-        await rest.put(
-            Routes.applicationCommands(client.user.id),
-            { body: commands }
-        );
-        console.log('🚀 Đã cập nhật xong lệnh toàn cầu (User App)!');
-    } catch (error) {
-        console.error('❌ Lỗi khi đăng ký lệnh:', error);
+class CardGame {
+    constructor() {
+        this.deck = [];
+        this.resetDeck();
     }
-});
 
-// --- XỬ LÝ KHI NGƯỜI DÙNG GÕ LỆNH ---
-client.on('interactionCreate', async interaction => {
-    if (!interaction.isChatInputCommand()) return;
-
-    const { commandName, guildId, user } = interaction;
-    const idKey = guildId || user.id;
-
-    // 1. XỬ LÝ LỆNH /SPAM
-    if (commandName === 'spam') {
-        const noidung = interaction.options.getString('noidung');
-        // Nếu không chọn thời gian, mặc định sẽ là 1 giây (1000ms)
-        const thoigian = interaction.options.getInteger('thoigian') || 1000; 
-
-        // Đổi mili-giây sang chữ để bot thông báo cho đẹp
-        let textHienThi = `${thoigian / 1000} giây`;
-        if (thoigian >= 60000 && thoigian < 3600000) textHienThi = `${thoigian / 60000} phút`;
-        if (thoigian >= 3600000) textHienThi = `${thoigian / 3600000} giờ`;
-
-        // Nếu đang spam sẵn rồi thì ép dừng cái cũ
-        if (spamIntervals[idKey]) {
-            clearInterval(spamIntervals[idKey]);
-        }
-
-        await interaction.reply(`🚀 Bắt đầu xả trận spam! Giãn cách: **${textHienThi}**. Gõ \`/stop\` để dừng.`);
-
-        // Kích hoạt vòng lặp spam
-        spamIntervals[idKey] = setInterval(async () => {
-            try {
-                await interaction.channel.send(noidung);
-            } catch (err) {
-                console.log('❌ Bị chặn gửi tin nhắn hoặc thiếu quyền.');
-                clearInterval(spamIntervals[idKey]);
-                delete spamIntervals[idKey];
+    resetDeck() {
+        this.deck = [];
+        for (let suit of SUITS) {
+            for (let value of VALUES) {
+                this.deck.push({ suit, value });
             }
-        }, thoigian);
+        }
+        this.shuffle();
     }
 
-    // 2. XỬ LÝ LỆNH /STOP
-    if (commandName === 'stop') {
-        if (spamIntervals[idKey]) {
-            clearInterval(spamIntervals[idKey]); // Dừng bộ đếm ngay lập tức
-            delete spamIntervals[idKey];
-            return interaction.reply('✅ Đã dập dịch! Bot đã dừng spam thành công.');
-        } else {
-            return interaction.reply('❌ Hiện tại bot có đang spam cái gì đâu mà dừng ông?');
+    shuffle() {
+        for (let i = this.deck.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [this.deck[i], this.deck[j]] = [this.deck[j], this.deck[i]];
         }
+    }
+
+    drawCard() {
+        return this.deck.pop();
+    }
+
+    drawHand(numCards) {
+        return Array.from({ length: numCards }, () => this.drawCard());
+    }
+}
+
+// ========== TÍNH ĐIỂM BÀI CÀO ==========
+function calculateScore(cards) {
+    let total = 0;
+    
+    for (let card of cards) {
+        let value = card.value;
+        if (['J', 'Q', 'K'].includes(value)) {
+            total += 10;
+        } else if (value === 'A') {
+            total += 1;
+        } else {
+            total += parseInt(value);
+        }
+    }
+    
+    return total % 10; // Chỉ lấy hàng đơn vị (0-9)
+}
+
+function getScoreName(score) {
+    const names = {
+        0: '0 Điểm',
+        1: '1 Điểm',
+        2: '2 Điểm',
+        3: '3 Điểm',
+        4: '4 Điểm',
+        5: '5 Điểm',
+        6: '6 Điểm',
+        7: '7 Điểm',
+        8: '8 Điểm',
+        9: '9 Điểm (Cào!)'
+    };
+    return names[score] || `${score} Điểm`;
+}
+
+function checkSpecial(cards) {
+    const values = cards.map(c => c.value);
+    const uniqueValues = new Set(values);
+    
+    // Sáp (3 lá giống nhau)
+    if (uniqueValues.size === 1) return 'SÁP 🔥';
+    
+    // Liêng (3 lá liên tiếp)
+    const valueOrder = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+    const indices = values.map(v => valueOrder.indexOf(v)).sort((a, b) => a - b);
+    if (indices[2] - indices[1] === 1 && indices[1] - indices[0] === 1) return 'LIÊNG ✨';
+    
+    // 3 Tây (J, Q, K)
+    if (values.every(v => ['J', 'Q', 'K'].includes(v))) return '3 TÂY 👑';
+    
+    return null;
+}
+
+function getCardDisplay(card) {
+    const colors = { '♥': '🔴', '♦': '🔴', '♠': '⚫', '♣': '⚫' };
+    return `${colors[card.suit]}${card.value}${card.suit}`;
+}
+
+// ========== DATABASE TIỀN ẢO ==========
+const userMoney = new Map();
+
+function getMoney(userId) {
+    if (!userMoney.has(userId)) {
+        userMoney.set(userId, 10000); // Tặng 10k khởi đầu
+    }
+    return userMoney.get(userId);
+}
+
+function addMoney(userId, amount) {
+    userMoney.set(userId, getMoney(userId) + amount);
+}
+
+function deductMoney(userId, amount) {
+    const current = getMoney(userId);
+    if (current < amount) return false;
+    userMoney.set(userId, current - amount);
+    return true;
+}
+
+// ========== BOT EVENTS ==========
+client.once('ready', () => {
+    console.log(`🤖 ${client.user.tag} - Bot Bài Cào Online!`);
+    client.user.setPresence({ activities: [{ name: '.cao | Bài Cào 3 Lá', type: 'PLAYING' }], status: 'online' });
+});
+
+client.on('messageCreate', async (message) => {
+    if (message.author.bot) return;
+    const content = message.content.trim().toLowerCase();
+
+    // ========== HELP ==========
+    if (content === '.help') {
+        const embed = new EmbedBuilder()
+            .setColor('#FFD700')
+            .setTitle('🃏 Bot Bài Cào 3 Lá - Hướng Dẫn')
+            .setDescription('Chơi bài cào với bot!')
+            .addFields(
+                { name: '🎮 Lệnh chơi', value: '`.cao <tiền_cược>` - Chơi bài cào' },
+                { name: '💰 Lệnh tiền', value: '`.money` - Xem tiền\n`.daily` - Nhận 5k/ngày' },
+                { name: '📋 Luật chơi', value: 'Bài cào 3 lá, điểm 0-9\nNút (9 điểm) = THẮNG\nSáp > Liêng > 3 Tây > Điểm' }
+            );
+        return message.reply({ embeds: [embed] });
+    }
+
+    // ========== XEM TIỀN ==========
+    if (content === '.money') {
+        const money = getMoney(message.author.id);
+        const embed = new EmbedBuilder()
+            .setColor('#00FF00')
+            .setTitle(`💰 ${message.author.username}`)
+            .setDescription(`Số dư: **${money.toLocaleString('vi-VN')} VNĐ**`);
+        return message.reply({ embeds: [embed] });
+    }
+
+    // ========== DAILY ==========
+    if (content === '.daily') {
+        addMoney(message.author.id, 5000);
+        const money = getMoney(message.author.id);
+        return message.reply(`🎁 Nhận **5,000 VNĐ** thành công!\n💰 Số dư: **${money.toLocaleString('vi-VN')} VNĐ**`);
+    }
+
+    // ========== CHƠI BÀI CÀO ==========
+    if (content.startsWith('.cao')) {
+        const args = message.content.split(' ');
+        const bet = parseInt(args[1]);
+
+        if (isNaN(bet) || bet < 100) {
+            return message.reply('❌ Cược tối thiểu **100 VNĐ**!\n`.cao <số_tiền>`');
+        }
+
+        if (!deductMoney(message.author.id, bet)) {
+            return message.reply('❌ Không đủ tiền!\n💰 Dùng `.daily` để nhận thêm');
+        }
+
+        // Tạo bộ bài
+        const game = new CardGame();
+        const playerCards = game.drawHand(3);
+        const botCards = game.drawHand(3);
+
+        const playerScore = calculateScore(playerCards);
+        const botScore = calculateScore(botCards);
+        const playerSpecial = checkSpecial(playerCards);
+        const botSpecial = checkSpecial(botCards);
+
+        // Tạo embed hiển thị
+        const playerDisplay = playerCards.map(c => getCardDisplay(c)).join(' ');
+        const botDisplay = botCards.map(c => getCardDisplay(c)).join(' ');
+
+        // Xác định kết quả
+        let result = '';
+        let color = '';
+        let winAmount = 0;
+
+        // Ưu tiên đặc biệt trước
+        if (playerSpecial && !botSpecial) {
+            result = 'THẮNG';
+            color = '#FFD700';
+            winAmount = bet * 3;
+        } else if (!playerSpecial && botSpecial) {
+            result = 'THUA';
+            color = '#FF0000';
+            winAmount = 0;
+        } else if (playerSpecial && botSpecial) {
+            // Cùng đặc biệt → so sánh
+            if (playerSpecial === botSpecial) {
+                result = 'HÒA';
+                color = '#FFFF00';
+                winAmount = bet;
+            } else {
+                result = playerScore > botScore ? 'THẮNG' : 'THUA';
+                color = result === 'THẮNG' ? '#FFD700' : '#FF0000';
+                winAmount = result === 'THẮNG' ? bet * 2 : 0;
+            }
+        } else {
+            // So điểm
+            if (playerScore > botScore) {
+                result = 'THẮNG';
+                color = '#FFD700';
+                winAmount = bet * 2;
+            } else if (playerScore < botScore) {
+                result = 'THUA';
+                color = '#FF0000';
+                winAmount = 0;
+            } else {
+                result = 'HÒA';
+                color = '#FFFF00';
+                winAmount = bet;
+            }
+        }
+
+        // Cập nhật tiền
+        addMoney(message.author.id, winAmount);
+
+        const embed = new EmbedBuilder()
+            .setColor(color)
+            .setTitle(`🃏 Bài Cào - ${result}!`)
+            .setDescription(`Cược: **${bet.toLocaleString('vi-VN')} VNĐ**`)
+            .addFields(
+                { name: `👤 ${message.author.username}`, value: `${playerDisplay}\n${playerSpecial ? `**${playerSpecial}** + ` : ''}${getScoreName(playerScore)}`, inline: true },
+                { name: `🤖 Bot`, value: `${botDisplay}\n${botSpecial ? `**${botSpecial}** + ` : ''}${getScoreName(botScore)}`, inline: true },
+                { name: '💰 Kết quả', value: winAmount > 0 ? `+ **${winAmount.toLocaleString('vi-VN')} VNĐ**` : 'Mất cược', inline: false }
+            )
+            .setFooter({ text: `Số dư: ${getMoney(message.author.id).toLocaleString('vi-VN')} VNĐ` });
+
+        return message.reply({ embeds: [embed] });
     }
 });
 
-// Đăng nhập bot
-client.login(process.env.TOKEN);
- 
+// ========== LOGIN ==========
+client.login(CONFIG.token).then(() => {
+    console.log('🃏 Bot Bài Cào 3 Lá đã sẵn sàng!');
+    console.log('📋 Lệnh: .cao .money .daily .help');
+}).catch(console.error); 
