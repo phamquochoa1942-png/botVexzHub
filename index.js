@@ -1,5 +1,5 @@
 // =============================================
-// DISCORD BÀI CÀO 3 LÁ + TÀI XỈU BOT
+// DISCORD BÀI CÀO 3 LÁ + TÀI XỈU BOT - EMOJI THẬT
 // Lệnh: .cao .bank .money .daily .taixiu .top .ruachen .admin | 24/7
 // =============================================
 
@@ -26,9 +26,21 @@ http.createServer((req, res) => {
     res.end('OK');
 }).listen(CONFIG.port);
 
-// ========== BỘ BÀI ==========
-const SUITS = ['♠', '♥', '♦', '♣'];
-const VALUES = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+// ========== BỘ BÀI EMOJI THẬT ==========
+const boBai = [
+    { id: "2_co", ten: "2 Cơ", emoji: "<:haitráitim:150821393621782758>", diem: 2 },
+    { id: "3_co", ten: "3 Cơ", emoji: "<:batráitim:150821395588911295>", diem: 3 },
+    { id: "4_bich", ten: "4 Bích", emoji: "<:bốnlábài:150821397476085840>", diem: 4 },
+    { id: "5_bich", ten: "5 Bích", emoji: "<:nămlábài:150821400009707581>", diem: 5 },
+    { id: "6_bich", ten: "6 Bích", emoji: "<:sáulábài:150821403281264670>", diem: 6 },
+    { id: "7_chuon", ten: "7 Chuồn", emoji: "<:bảycâulạcbộ:150821405726539836>", diem: 7 },
+    { id: "8_co", ten: "8 Cơ", emoji: "<:támcơ:150821408029216899>", diem: 8 },
+    { id: "9_chuon", ten: "9 Chuồn", emoji: "<:chíncâulạcbộ:150821410130563193>", diem: 9 },
+    { id: "10_co", ten: "10 Cơ", emoji: "<:tenofhearts:150821412336631889>", diem: 10 },
+    { id: "J_chuon", ten: "J Chuồn", emoji: "<:jackofclubs1:150821414370869289>", diem: 10 },
+    { id: "Q_co", ten: "Q Cơ", emoji: "<:nữhoàngcủatráitim:150821416501579826>", diem: 10 },
+    { id: "K_chuon", ten: "K Chuồn", emoji: "<:vuacủacáccâulạcbộ:150821418586017892>", diem: 10 }
+];
 
 class CardGame {
     constructor() {
@@ -37,12 +49,7 @@ class CardGame {
     }
 
     resetDeck() {
-        this.deck = [];
-        for (let suit of SUITS) {
-            for (let value of VALUES) {
-                this.deck.push({ suit, value });
-            }
-        }
+        this.deck = [...boBai]; // Copy bộ bài
         this.shuffle();
     }
 
@@ -54,6 +61,9 @@ class CardGame {
     }
 
     drawCard() {
+        if (this.deck.length === 0) {
+            this.resetDeck();
+        }
         return this.deck.pop();
     }
 
@@ -67,14 +77,7 @@ function calculateScore(cards) {
     let total = 0;
     
     for (let card of cards) {
-        let value = card.value;
-        if (['J', 'Q', 'K'].includes(value)) {
-            total += 10;
-        } else if (value === 'A') {
-            total += 1;
-        } else {
-            total += parseInt(value);
-        }
+        total += card.diem;
     }
     
     return total % 10;
@@ -97,23 +100,20 @@ function getScoreName(score) {
 }
 
 function checkSpecial(cards) {
-    const values = cards.map(c => c.value);
-    const uniqueValues = new Set(values);
+    const ids = cards.map(c => c.id.split('_')[0]); // Lấy phần số/J/Q/K
+    const uniqueIds = new Set(ids);
     
-    if (uniqueValues.size === 1) return 'SÁP 🔥';
+    // Sáp (3 lá giống nhau)
+    if (uniqueIds.size === 1) return 'SÁP 🔥';
     
-    const valueOrder = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
-    const indices = values.map(v => valueOrder.indexOf(v)).sort((a, b) => a - b);
-    if (indices[2] - indices[1] === 1 && indices[1] - indices[0] === 1) return 'LIÊNG ✨';
-    
-    if (values.every(v => ['J', 'Q', 'K'].includes(v))) return '3 TÂY 👑';
+    // 3 Tây (J, Q, K)
+    if (ids.every(v => ['J', 'Q', 'K'].includes(v))) return '3 TÂY 👑';
     
     return null;
 }
 
 function getCardDisplay(card) {
-    const colors = { '♥': '🔴', '♦': '🔴', '♠': '⚫', '♣': '⚫' };
-    return `${colors[card.suit]}${card.value}${card.suit}`;
+    return card.emoji; // Trả về emoji thật
 }
 
 // ========== DATABASE TIỀN ẢO (TỰ ĐỘNG LƯU VÀO FILE) ==========
@@ -708,4 +708,5 @@ client.login(CONFIG.token).then(() => {
     console.log('🍽️ Rửa chén cooldown: 45s (+1,000 VNĐ)');
     console.log('👑 Admin: .admin (+500,000 VNĐ) chỉ Owner');
     console.log('🎲 Tài Xỉu: 45s đặt cược + hiệu ứng lắc');
+    console.log('🃏 Bài Cào: Dùng emoji bài thật!');
 }).catch(console.error); 
