@@ -1,6 +1,6 @@
 // =============================================
 // DISCORD BÀI CÀO 3 LÁ + TÀI XỈU BOT - FULL
-// Lệnh: .cao .bank .money .daily .taixiu .top .ruachen .fish .crime .admin | 24/7
+// Lệnh: .cao .bank .money .daily .taixiu .top .ruachen .cauca .cuop .xoso .admin | 24/7
 // Có thách đấu 1v1 (cược chênh lệch) + đánh với bot
 // =============================================
 
@@ -233,6 +233,11 @@ const fishDatabase = [
 const crimeCooldown = new Map();
 const jailUsers = new Map();
 
+// ========== XỔ SỐ ==========
+const xosoTickets = [];
+let xosoResult = null;
+let xosoTimeout = null;
+
 // ========== TÀI XỈU GAME ==========
 const activeTaiXiuGames = new Map();
 
@@ -243,7 +248,7 @@ const challenges = new Map();
 client.once('ready', () => {
     console.log(`🤖 ${client.user.tag} - Bot Bài Cào + Tài Xỉu Online!`);
     loadData();
-    client.user.setPresence({ activities: [{ name: '.cao .taixiu .fish .crime | 24/7', type: 'PLAYING' }], status: 'online' });
+    client.user.setPresence({ activities: [{ name: '.cao .taixiu .cauca .cuop .xoso | 24/7', type: 'PLAYING' }], status: 'online' });
 });
 
 client.on('messageCreate', async (message) => {
@@ -257,8 +262,8 @@ client.on('messageCreate', async (message) => {
             .setTitle('🃏 Bot Bài Cào + Tài Xỉu - Hướng Dẫn')
             .setDescription('Chơi bài cào và tài xỉu với bot!')
             .addFields(
-                { name: '🎮 Lệnh chơi', value: '`.cao <tiền>` - Chơi bài cào với bot\n`.cao @nguoi <tiền>` - Thách đấu 1v1 (cược chênh lệch được)\n`.taixiu <tiền>` - Mở bàn tài xỉu' },
-                { name: '💼 Việc làm', value: '`.ruachen` - Rửa chén +1k (45s)\n`.fish` - Câu cá +50~50k (1 phút)\n`.crime` - Đi cướp (10 phút)' },
+                { name: '🎮 Lệnh chơi', value: '`.cao <tiền>` - Chơi bài cào với bot\n`.cao @nguoi <tiền>` - Thách đấu 1v1 (cược chênh lệch được)\n`.taixiu <tiền>` - Mở bàn tài xỉu\n`.xoso` - Mua vé xổ số 10k (5p quay)' },
+                { name: '💼 Việc làm', value: '`.ruachen` - Rửa chén +1k (45s)\n`.cauca` - Câu cá +50~50k (1 phút)\n`.cuop` - Đi cướp (10 phút)' },
                 { name: '💰 Lệnh tiền', value: '`.money` - Xem tiền\n`.daily` - Nhận 5k (1h30p)\n`.bank @user <tiền>` - Chuyển tiền\n`.top` - Xem top giàu' },
                 { name: '👑 Admin', value: '`.admin` - Admin nhận 500,000 VNĐ (chỉ Owner)' },
                 { name: '💾 Lưu dữ liệu', value: '✅ Tiền tự động lưu vào file\n✅ Không sợ mất khi bot restart' }
@@ -344,7 +349,7 @@ client.on('messageCreate', async (message) => {
     }
 
     // ========== CÂU CÁ (1 phút cooldown) ==========
-    if (content === '.fish' || content === '.cauca') {
+    if (content === '.cauca') {
         const userId = message.author.id;
         const now = Date.now();
         const cooldownTime = 60000;
@@ -388,7 +393,7 @@ client.on('messageCreate', async (message) => {
     }
 
     // ========== ĐI CƯỚP (10 phút cooldown) ==========
-    if (content === '.crime' || content === '.cuop') {
+    if (content === '.cuop') {
         const userId = message.author.id;
         const now = Date.now();
         const cooldownTime = 600000;
@@ -424,17 +429,14 @@ client.on('messageCreate', async (message) => {
         let amount = 0;
         
         if (roll < 50) {
-            // 50% Thành công: +50,000 VNĐ
             amount = 50000;
             color = '#00FF00';
             resultText = '✅ **THÀNH CÔNG!**\n🔫 Bạn cướp được ngân hàng!';
         } else if (roll < 80) {
-            // 30% Hên xui: +5,000 VNĐ
             amount = 5000;
             color = '#FF6600';
             resultText = '⚠️ **HÊN XUI!**\n😅 Cướp hụt nhưng cũng nhặt được ít tiền lẻ!';
         } else {
-            // 20% Bị bắt: -3,500 VNĐ + Tù 1 phút
             amount = -3500;
             color = '#FF0000';
             resultText = '🚔 **BỊ BẮT!**\n👮 Cảnh sát đã tóm được bạn!';
@@ -461,6 +463,138 @@ client.on('messageCreate', async (message) => {
             .setTimestamp();
         
         return message.reply({ embeds: [embed] });
+    }
+
+    // ========== XỔ SỐ (5 phút quay 1 lần) ==========
+    if (content === '.xoso') {
+        const userId = message.author.id;
+        const ticketPrice = 10000;
+        
+        if (getMoney(userId) < ticketPrice) {
+            return message.reply('❌ Bạn cần **10,000 VNĐ** để mua vé!\n💰 Số dư: **' + getMoney(userId).toLocaleString('vi-VN') + ' VNĐ**');
+        }
+        
+        deductMoney(userId, ticketPrice);
+        
+        const ticketNumbers = [];
+        for (let i = 0; i < 4; i++) {
+            ticketNumbers.push(Math.floor(Math.random() * 10));
+        }
+        
+        xosoTickets.push({
+            userId: userId,
+            username: message.author.username,
+            numbers: ticketNumbers,
+            time: Date.now()
+        });
+        
+        const ticketDisplay = ticketNumbers.map(n => `[${n}]`).join(' ');
+        
+        const embed = new EmbedBuilder()
+            .setColor('#FFD700')
+            .setTitle('🎫 XỔ SỐ KIẾN THIẾT!')
+            .setDescription(`${message.author} đã mua vé xổ số!`)
+            .addFields(
+                { name: '🎯 Vé của bạn', value: ticketDisplay },
+                { name: '💰 Đã trừ', value: '**10,000 VNĐ**' },
+                { name: '⏰ Thời gian', value: 'Kết quả sau **5 phút** nữa!' }
+            )
+            .setFooter({ text: 'Chúc may mắn! 🍀' })
+            .setTimestamp();
+        
+        await message.reply({ embeds: [embed] });
+        
+        if (!xosoTimeout) {
+            xosoTimeout = setTimeout(async () => {
+                const giaiNhat = [];
+                const giaiNhi = [];
+                const giaiDB = [];
+                
+                for (let i = 0; i < 4; i++) {
+                    giaiNhat.push(Math.floor(Math.random() * 10));
+                    giaiNhi.push(Math.floor(Math.random() * 10));
+                    giaiDB.push(Math.floor(Math.random() * 10));
+                }
+                
+                if (xosoTickets.length > 0) {
+                    const randomTicket = xosoTickets[Math.floor(Math.random() * xosoTickets.length)];
+                    const randomPrize = Math.floor(Math.random() * 3);
+                    
+                    if (randomPrize === 0) {
+                        for (let i = 0; i < 4; i++) giaiNhat[i] = randomTicket.numbers[i];
+                    } else if (randomPrize === 1) {
+                        for (let i = 0; i < 4; i++) giaiNhi[i] = randomTicket.numbers[i];
+                    } else {
+                        for (let i = 0; i < 4; i++) giaiDB[i] = randomTicket.numbers[i];
+                    }
+                }
+                
+                xosoResult = { giaiNhat, giaiNhi, giaiDB, time: Date.now() };
+                
+                const giaiNhatDisplay = giaiNhat.map(n => `[${n}]`).join(' ');
+                const giaiNhiDisplay = giaiNhi.map(n => `[${n}]`).join(' ');
+                const giaiDBDisplay = giaiDB.map(n => `[${n}]`).join(' ');
+                
+                for (const ticket of xosoTickets) {
+                    const ticketDisplay = ticket.numbers.map(n => `[${n}]`).join(' ');
+                    let winAmount = 0;
+                    let winText = '';
+                    
+                    const trungNhat = ticket.numbers.every((n, i) => n === giaiNhat[i]);
+                    const trungNhi = ticket.numbers.every((n, i) => n === giaiNhi[i]);
+                    const trungDB = ticket.numbers.every((n, i) => n === giaiDB[i]);
+                    
+                    if (trungDB) { winAmount += 2000000; winText += '🥇 **Giải Đặc Biệt! +2,000,000 VNĐ**\n'; }
+                    if (trungNhi) { winAmount += 60000; winText += '🥈 **Giải Nhì! +60,000 VNĐ**\n'; }
+                    if (trungNhat) { winAmount += 15000; winText += '🥉 **Giải Nhất! +15,000 VNĐ**\n'; }
+                    
+                    if (winAmount > 0) {
+                        addMoney(ticket.userId, winAmount);
+                    }
+                    
+                    try {
+                        const user = await client.users.fetch(ticket.userId);
+                        const resultEmbed = new EmbedBuilder()
+                            .setColor(winAmount > 0 ? '#00FF00' : '#FF6600')
+                            .setTitle(winAmount > 0 ? '🎉 TRÚNG THƯỞNG!' : '😢 KẾT QUẢ XỔ SỐ')
+                            .setDescription(
+                                `🥉 Giải Nhất: ${giaiNhatDisplay}\n` +
+                                `🥈 Giải Nhì: ${giaiNhiDisplay}\n` +
+                                `🥇 Giải ĐB: ${giaiDBDisplay}\n\n` +
+                                `🎯 Vé của bạn: ${ticketDisplay}`
+                            )
+                            .addFields(
+                                { name: '📊 Kết quả', value: winAmount > 0 ? winText : '❌ Chúc may mắn lần sau!' },
+                                { name: '💰 Số dư', value: `**${getMoney(ticket.userId).toLocaleString('vi-VN')} VNĐ**` }
+                            )
+                            .setFooter({ text: 'Xổ Số Kiến Thiết | 5 phút/lần' })
+                            .setTimestamp();
+                        
+                        await user.send({ embeds: [resultEmbed] }).catch(() => {});
+                    } catch (e) {}
+                }
+                
+                const channelEmbed = new EmbedBuilder()
+                    .setColor('#FF0000')
+                    .setTitle('🎉 KẾT QUẢ XỔ SỐ!')
+                    .setDescription(
+                        `🥉 **Giải Nhất:** ${giaiNhatDisplay} | Thưởng: 15,000 VNĐ\n` +
+                        `🥈 **Giải Nhì:** ${giaiNhiDisplay} | Thưởng: 60,000 VNĐ\n` +
+                        `🥇 **Giải ĐB:** ${giaiDBDisplay} | Thưởng: 2,000,000 VNĐ`
+                    )
+                    .setFooter({ text: 'Dùng .xoso để mua vé mới!' })
+                    .setTimestamp();
+                
+                await message.channel.send({ embeds: [channelEmbed] });
+                
+                xosoTickets.length = 0;
+                xosoResult = null;
+                xosoTimeout = null;
+                
+            }, 300000);
+        }
+        
+        return;
     }
 
     // ========== ADMIN (Chỉ Owner - Nhận 500,000 VNĐ) ==========
@@ -536,7 +670,7 @@ client.on('messageCreate', async (message) => {
         return message.reply({ embeds: [embed] });
     }
 
-    // ========== THÁCH ĐẤU 1V1 (.cao @nguoi <tien>) - HỖ TRỢ CƯỢC CHÊNH LỆCH ==========
+    // ========== THÁCH ĐẤU 1V1 (.cao @nguoi <tien>) ==========
     if (content.startsWith('.cao') && message.mentions.users.size > 0) {
         const args = message.content.split(' ');
         args.shift();
@@ -559,25 +693,23 @@ client.on('messageCreate', async (message) => {
         const reverseKey = targetUser.id + '_' + message.author.id;
         
         if (challenges.has(reverseKey)) {
-            // Đối phương đã thách đấu → TIẾN HÀNH ĐẤU!
             const existingChallenge = challenges.get(reverseKey);
             challenges.delete(reverseKey);
             
-            const p1Bet = existingChallenge.amount; // Người thách đầu
-            const p2Bet = myBet; // Người chấp nhận
+            const p1Bet = existingChallenge.amount;
+            const p2Bet = myBet;
             
-            // Kiểm tra tiền người kia
             if (getMoney(targetUser.id) < p1Bet) {
                 return message.reply('❌ ' + targetUser.username + ' không đủ tiền cược ' + p1Bet.toLocaleString('vi-VN') + ' VNĐ!');
             }
             
-            deductMoney(targetUser.id, p1Bet); // Người thách đầu (targetUser là người gửi lời mời)
-            deductMoney(message.author.id, p2Bet); // Người chấp nhận (message.author)
+            deductMoney(targetUser.id, p1Bet);
+            deductMoney(message.author.id, p2Bet);
             
             const totalPool = p1Bet + p2Bet;
             const game = new CardGame();
-            const p1Cards = game.drawHand(3); // targetUser (người thách đầu)
-            const p2Cards = game.drawHand(3); // message.author (người chấp nhận)
+            const p1Cards = game.drawHand(3);
+            const p2Cards = game.drawHand(3);
             
             const p1Score = calculateScore(p1Cards);
             const p2Score = calculateScore(p2Cards);
@@ -632,7 +764,6 @@ client.on('messageCreate', async (message) => {
             return message.reply({ content: targetUser.toString(), embeds: [embed] });
             
         } else {
-            // Tạo thách đấu mới
             challenges.set(challengeKey, { challenger: message.author.id, target: targetUser.id, amount: myBet, time: Date.now() });
             
             setTimeout(() => { if (challenges.has(challengeKey)) challenges.delete(challengeKey); }, 60000);
@@ -976,11 +1107,11 @@ async function shakeTaiXiu(gameMessage, game, row) {
 // ========== LOGIN ==========
 client.login(CONFIG.token).then(() => {
     console.log('🃏 Bot Bài Cào + Tài Xỉu đã sẵn sàng!');
-    console.log('📋 Lệnh: .cao .cao @nguoi .taixiu .fish .crime .ruachen .money .daily .bank .admin .top .help');
+    console.log('📋 Lệnh: .cao .cao @nguoi .taixiu .cauca .cuop .xoso .ruachen .money .daily .bank .admin .top .help');
     console.log('💾 Tự động lưu tiền vào file userdata.json');
-    console.log('⏰ Daily: 1h30p | Rửa chén: 45s | Cá: 1p | Cướp: 10p');
+    console.log('⏰ Daily: 1h30p | Rửa chén: 45s | Câu cá: 1p | Cướp: 10p | Xổ số: 5p');
     console.log('👑 Admin: .admin (+500,000 VNĐ) chỉ Owner');
     console.log('🎲 Tài Xỉu: Nhập cược + nút bấm + 45s đếm ngược');
     console.log('🃏 Bài Cào: Đánh với bot + Thách đấu 1v1 (cược chênh lệch)');
-    console.log('⚔️ Thách đấu: .cao @nguoi <tien> - Hỗ trợ cược chênh lệch!');
+    console.log('🎫 Xổ Số: .xoso - Mua vé 10k, quay mỗi 5 phút!');
 }).catch(console.error); 
