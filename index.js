@@ -397,7 +397,7 @@ client.on('messageCreate', async (message) => {
         return message.reply({ embeds: [embed] });
     }
 
-    // ========== CHƠI BÀI CÀO (FIXED - THẮNG NHẬN ĐÚNG TIỀN) ==========
+    // ========== CHƠI BÀI CÀO (FIX TRIỆT ĐỂ - THẮNG NHẬN ĐÚNG TIỀN) ==========
     if (content.startsWith('.cao')) {
         const args = message.content.split(' ');
         const bet = parseInt(args[1]);
@@ -406,6 +406,7 @@ client.on('messageCreate', async (message) => {
             return message.reply('❌ Cược tối thiểu **100 VNĐ**!\n`.cao <số_tiền>`');
         }
 
+        // Trừ tiền cược trước
         if (!deductMoney(message.author.id, bet)) {
             return message.reply('❌ Không đủ tiền!\n💰 Dùng `.daily` để nhận thêm');
         }
@@ -424,44 +425,57 @@ client.on('messageCreate', async (message) => {
 
         let result = '';
         let color = '';
-        let winAmount = 0;
+        let winAmount = 0; // Tiền LỜI (chưa tính gốc)
 
         if (playerSpecial && !botSpecial) {
-            result = 'THẮNG';
+            result = 'THẮNG (Sáp!)';
             color = '#FFD700';
-            winAmount = bet * 3; // Thắng Sáp: nhận 3x (gồm cả gốc)
+            winAmount = bet * 2; // Lời 2x (tổng nhận: gốc + 2x = 3x)
         } else if (!playerSpecial && botSpecial) {
             result = 'THUA';
             color = '#FF0000';
-            winAmount = 0; // Thua: mất cược
+            winAmount = -bet; // Mất cược
         } else if (playerSpecial && botSpecial) {
             if (playerSpecial === botSpecial) {
                 result = 'HÒA';
                 color = '#FFFF00';
-                winAmount = bet; // Hòa: hoàn cược
+                winAmount = 0; // Hòa: hoàn gốc
             } else {
-                result = playerScore > botScore ? 'THẮNG' : 'THUA';
-                color = result === 'THẮNG' ? '#FFD700' : '#FF0000';
-                winAmount = result === 'THẮNG' ? bet * 2 : 0; // Thắng: nhận 2x
+                if (playerScore > botScore) {
+                    result = 'THẮNG';
+                    color = '#FFD700';
+                    winAmount = bet; // Lời 1x (tổng: gốc + 1x = 2x)
+                } else {
+                    result = 'THUA';
+                    color = '#FF0000';
+                    winAmount = -bet;
+                }
             }
         } else {
             if (playerScore > botScore) {
                 result = 'THẮNG';
                 color = '#FFD700';
-                winAmount = bet * 2; // Thắng: nhận 2x (gấp đôi)
+                winAmount = bet; // Lời 1x (tổng: gốc + 1x = 2x)
             } else if (playerScore < botScore) {
                 result = 'THUA';
                 color = '#FF0000';
-                winAmount = 0; // Thua: mất cược
+                winAmount = -bet;
             } else {
                 result = 'HÒA';
                 color = '#FFFF00';
-                winAmount = bet; // Hòa: hoàn cược
+                winAmount = 0;
             }
         }
 
-        // FIX: Cộng winAmount (đã bao gồm gốc nếu thắng/hòa)
-        addMoney(message.author.id, winAmount);
+        // Cộng tiền: nếu thắng/hòa thì hoàn gốc + lời
+        if (winAmount >= 0) {
+            addMoney(message.author.id, bet + winAmount);
+        }
+        // Nếu thua: đã trừ tiền rồi, không làm gì thêm
+
+        const displayAmount = winAmount > 0 ? `+ **${(bet + winAmount).toLocaleString('vi-VN')} VNĐ** (gốc ${bet.toLocaleString()} + lời ${winAmount.toLocaleString()})` :
+                              winAmount === 0 ? `Hoàn **${bet.toLocaleString('vi-VN')} VNĐ**` :
+                              `Mất **${bet.toLocaleString('vi-VN')} VNĐ**`;
 
         const embed = new EmbedBuilder()
             .setColor(color)
@@ -470,7 +484,7 @@ client.on('messageCreate', async (message) => {
             .addFields(
                 { name: `👤 ${message.author.username}`, value: `${playerDisplay}\n${playerSpecial ? `**${playerSpecial}** + ` : ''}${getScoreName(playerScore)}`, inline: true },
                 { name: `🤖 Bot`, value: `${botDisplay}\n${botSpecial ? `**${botSpecial}** + ` : ''}${getScoreName(botScore)}`, inline: true },
-                { name: '💰 Kết quả', value: winAmount > 0 ? `+ **${winAmount.toLocaleString('vi-VN')} VNĐ**` : 'Mất cược', inline: false }
+                { name: '💰 Kết quả', value: displayAmount, inline: false }
             )
             .setFooter({ text: `Số dư: ${getMoney(message.author.id).toLocaleString('vi-VN')} VNĐ | Tự động lưu 💾` });
 
@@ -486,7 +500,6 @@ client.on('messageCreate', async (message) => {
         const args = message.content.split(' ');
         let betAmount = parseInt(args[1]);
         
-        // Nếu không nhập hoặc nhập sai, mặc định 100
         if (isNaN(betAmount) || betAmount < 100) {
             betAmount = 100;
         }
@@ -717,5 +730,5 @@ client.login(CONFIG.token).then(() => {
     console.log('🍽️ Rửa chén cooldown: 45s (+1,000 VNĐ)');
     console.log('👑 Admin: .admin (+500,000 VNĐ) chỉ Owner');
     console.log('🎲 Tài Xỉu: Nhập cược + nút bấm + 45s đếm ngược');
-    console.log('🃏 Bài Cào: FIX - Thắng nhận đúng tiền (x2, x3)');
+    console.log('🃏 Bài Cào: FIX TRIỆT ĐỂ - Cược 200k thắng nhận đủ 400k');
 }).catch(console.error); 
