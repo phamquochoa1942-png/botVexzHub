@@ -1,5 +1,5 @@
 // =============================================
-// DISCORD BÀI CÀO 3 LÁ + TÀI XỈU BOT - FIXED
+// DISCORD BÀI CÀO 3 LÁ + TÀI XỈU BOT - FINAL FIX
 // Lệnh: .cao .bank .money .daily .taixiu .top .ruachen .admin | 24/7
 // =============================================
 
@@ -238,10 +238,10 @@ client.on('messageCreate', async (message) => {
             .setTitle('🃏 Bot Bài Cào + Tài Xỉu - Hướng Dẫn')
             .setDescription('Chơi bài cào và tài xỉu với bot!')
             .addFields(
-                { name: '🎮 Lệnh chơi', value: '`.cao <tiền_cược>` - Chơi bài cào\n`.taixiu <tiền_cược>` - Mở bàn tài xỉu (có nút bấm)\n`.ruachen` - Rửa chén kiếm 1,000 VNĐ (45s)' },
+                { name: '🎮 Lệnh chơi', value: '`.cao <tiền_cược>` - Chơi bài cào (bot cược bằng bạn)\n`.taixiu <tiền_cược>` - Mở bàn tài xỉu (có nút bấm)\n`.ruachen` - Rửa chén kiếm 1,000 VNĐ (45s)' },
                 { name: '💰 Lệnh tiền', value: '`.money` - Xem tiền\n`.daily` - Nhận 5k (1h30p dùng 1 lần)\n`.bank <@user> <số_tiền>` - Chuyển tiền\n`.top` - Xem top giàu' },
                 { name: '👑 Admin', value: '`.admin` - Admin nhận 500,000 VNĐ (chỉ Owner)' },
-                { name: '📋 Luật Tài Xỉu', value: 'Xỉu: 3-10 | Tài: 11-18\n45 giây để đặt cược\nCó thể chọn 1 trong 2 hoặc cả 2\nNhập cược: .taixiu <số_tiền>' },
+                { name: '📋 Luật chơi', value: 'Bài cào: Bot cược bằng bạn, thắng gôm hết\nTài Xỉu: 3-10 Xỉu | 11-18 Tài\n45 giây đặt cược' },
                 { name: '💾 Lưu dữ liệu', value: '✅ Tiền tự động lưu vào file\n✅ Không sợ mất khi bot restart' }
             );
         return message.reply({ embeds: [embed] });
@@ -397,7 +397,7 @@ client.on('messageCreate', async (message) => {
         return message.reply({ embeds: [embed] });
     }
 
-    // ========== CHƠI BÀI CÀO (FIX TRIỆT ĐỂ - THẮNG NHẬN ĐÚNG TIỀN) ==========
+    // ========== CHƠI BÀI CÀO (FINAL FIX - THẮNG GÔM TIỀN BOT) ==========
     if (content.startsWith('.cao')) {
         const args = message.content.split(' ');
         const bet = parseInt(args[1]);
@@ -406,10 +406,16 @@ client.on('messageCreate', async (message) => {
             return message.reply('❌ Cược tối thiểu **100 VNĐ**!\n`.cao <số_tiền>`');
         }
 
-        // Trừ tiền cược trước
-        if (!deductMoney(message.author.id, bet)) {
-            return message.reply('❌ Không đủ tiền!\n💰 Dùng `.daily` để nhận thêm');
+        // Tổng cược = người chơi + bot (cả 2 cùng cược)
+        const totalPool = bet * 2;
+
+        // Kiểm tra người chơi đủ tiền không
+        if (getMoney(message.author.id) < bet) {
+            return message.reply('❌ Không đủ tiền!\n💰 Số dư: **' + getMoney(message.author.id).toLocaleString('vi-VN') + ' VNĐ**');
         }
+
+        // Trừ tiền cược của người chơi
+        deductMoney(message.author.id, bet);
 
         const game = new CardGame();
         const playerCards = game.drawHand(3);
@@ -425,62 +431,61 @@ client.on('messageCreate', async (message) => {
 
         let result = '';
         let color = '';
-        let winAmount = 0; // Tiền LỜI (chưa tính gốc)
+        let winAmount = 0; // Tổng tiền người chơi nhận được
 
         if (playerSpecial && !botSpecial) {
             result = 'THẮNG (Sáp!)';
             color = '#FFD700';
-            winAmount = bet * 2; // Lời 2x (tổng nhận: gốc + 2x = 3x)
+            winAmount = totalPool; // Gôm hết tổng cược
         } else if (!playerSpecial && botSpecial) {
             result = 'THUA';
             color = '#FF0000';
-            winAmount = -bet; // Mất cược
+            winAmount = 0; // Mất hết
         } else if (playerSpecial && botSpecial) {
             if (playerSpecial === botSpecial) {
                 result = 'HÒA';
                 color = '#FFFF00';
-                winAmount = 0; // Hòa: hoàn gốc
+                winAmount = bet; // Hoàn tiền của mình
             } else {
                 if (playerScore > botScore) {
                     result = 'THẮNG';
                     color = '#FFD700';
-                    winAmount = bet; // Lời 1x (tổng: gốc + 1x = 2x)
+                    winAmount = totalPool; // Gôm hết
                 } else {
                     result = 'THUA';
                     color = '#FF0000';
-                    winAmount = -bet;
+                    winAmount = 0; // Mất hết
                 }
             }
         } else {
             if (playerScore > botScore) {
                 result = 'THẮNG';
                 color = '#FFD700';
-                winAmount = bet; // Lời 1x (tổng: gốc + 1x = 2x)
+                winAmount = totalPool; // Gôm hết: tiền mình + tiền bot
             } else if (playerScore < botScore) {
                 result = 'THUA';
                 color = '#FF0000';
-                winAmount = -bet;
+                winAmount = 0; // Mất hết
             } else {
                 result = 'HÒA';
                 color = '#FFFF00';
-                winAmount = 0;
+                winAmount = bet; // Hoàn tiền của mình
             }
         }
 
-        // Cộng tiền: nếu thắng/hòa thì hoàn gốc + lời
-        if (winAmount >= 0) {
-            addMoney(message.author.id, bet + winAmount);
+        // Cộng tiền thắng
+        if (winAmount > 0) {
+            addMoney(message.author.id, winAmount);
         }
-        // Nếu thua: đã trừ tiền rồi, không làm gì thêm
 
-        const displayAmount = winAmount > 0 ? `+ **${(bet + winAmount).toLocaleString('vi-VN')} VNĐ** (gốc ${bet.toLocaleString()} + lời ${winAmount.toLocaleString()})` :
-                              winAmount === 0 ? `Hoàn **${bet.toLocaleString('vi-VN')} VNĐ**` :
+        const displayAmount = winAmount > bet ? `+ **${winAmount.toLocaleString('vi-VN')} VNĐ** (gốc ${bet.toLocaleString()} + tiền bot ${bet.toLocaleString()})` :
+                              winAmount === bet ? `Hoàn **${bet.toLocaleString('vi-VN')} VNĐ**` :
                               `Mất **${bet.toLocaleString('vi-VN')} VNĐ**`;
 
         const embed = new EmbedBuilder()
             .setColor(color)
             .setTitle(`🃏 Bài Cào - ${result}!`)
-            .setDescription(`Cược: **${bet.toLocaleString('vi-VN')} VNĐ**`)
+            .setDescription(`Cược mỗi bên: **${bet.toLocaleString('vi-VN')} VNĐ**\nTổng: **${totalPool.toLocaleString('vi-VN')} VNĐ**`)
             .addFields(
                 { name: `👤 ${message.author.username}`, value: `${playerDisplay}\n${playerSpecial ? `**${playerSpecial}** + ` : ''}${getScoreName(playerScore)}`, inline: true },
                 { name: `🤖 Bot`, value: `${botDisplay}\n${botSpecial ? `**${botSpecial}** + ` : ''}${getScoreName(botScore)}`, inline: true },
@@ -491,7 +496,7 @@ client.on('messageCreate', async (message) => {
         return message.reply({ embeds: [embed] });
     }
 
-    // ========== TÀI XỈU (FIXED - NHẬP CƯỢC TÙY CHỈNH) ==========
+    // ========== TÀI XỈU ==========
     if (content.startsWith('.taixiu')) {
         if (activeTaiXiuGames.has(message.channel.id)) {
             return message.reply('❌ Đã có bàn tài xỉu đang chạy trong kênh này! Đợi kết thúc nhé.');
@@ -730,5 +735,5 @@ client.login(CONFIG.token).then(() => {
     console.log('🍽️ Rửa chén cooldown: 45s (+1,000 VNĐ)');
     console.log('👑 Admin: .admin (+500,000 VNĐ) chỉ Owner');
     console.log('🎲 Tài Xỉu: Nhập cược + nút bấm + 45s đếm ngược');
-    console.log('🃏 Bài Cào: FIX TRIỆT ĐỂ - Cược 200k thắng nhận đủ 400k');
+    console.log('🃏 Bài Cào: Bot cược bằng bạn - Thắng gôm hết!');
 }).catch(console.error); 
