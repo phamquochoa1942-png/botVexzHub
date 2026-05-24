@@ -1,7 +1,7 @@
 // =============================================
 // DISCORD BÀI CÀO 3 LÁ + TÀI XỈU BOT - FULL
-// Lệnh: .cao .bank .money .daily .taixiu .top .ruachen .admin | 24/7
-// Có thách đấu 1v1 + đánh với bot
+// Lệnh: .cao .bank .money .daily .taixiu .top .ruachen .fish .crime .admin | 24/7
+// Có thách đấu 1v1 (cược chênh lệch) + đánh với bot
 // =============================================
 
 const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
@@ -218,6 +218,21 @@ function canUseRuaChen(userId) {
     return { canUse: true };
 }
 
+// ========== CÂU CÁ COOLDOWN (1 phút) ==========
+const fishCooldown = new Map();
+const fishDatabase = [
+    { name: '🐟 Cá Nhỏ', value: 50, chance: 0.4 },
+    { name: '🐠 Cá Vàng', value: 200, chance: 0.3 },
+    { name: '🐡 Cá Nóc', value: 500, chance: 0.15 },
+    { name: '🦈 Cá Mập', value: 2000, chance: 0.1 },
+    { name: '🐳 Cá Voi', value: 10000, chance: 0.04 },
+    { name: '🐉 Rồng Biển', value: 50000, chance: 0.01 }
+];
+
+// ========== ĐI CƯỚP COOLDOWN (10 phút) ==========
+const crimeCooldown = new Map();
+const jailUsers = new Map();
+
 // ========== TÀI XỈU GAME ==========
 const activeTaiXiuGames = new Map();
 
@@ -228,7 +243,7 @@ const challenges = new Map();
 client.once('ready', () => {
     console.log(`🤖 ${client.user.tag} - Bot Bài Cào + Tài Xỉu Online!`);
     loadData();
-    client.user.setPresence({ activities: [{ name: '.cao .taixiu .ruachen .bank | 24/7', type: 'PLAYING' }], status: 'online' });
+    client.user.setPresence({ activities: [{ name: '.cao .taixiu .fish .crime | 24/7', type: 'PLAYING' }], status: 'online' });
 });
 
 client.on('messageCreate', async (message) => {
@@ -242,10 +257,10 @@ client.on('messageCreate', async (message) => {
             .setTitle('🃏 Bot Bài Cào + Tài Xỉu - Hướng Dẫn')
             .setDescription('Chơi bài cào và tài xỉu với bot!')
             .addFields(
-                { name: '🎮 Lệnh chơi', value: '`.cao <tiền_cược>` - Chơi bài cào với bot\n`.cao @nguoi <tiền>` - Thách đấu 1v1\n`.taixiu <tiền_cược>` - Mở bàn tài xỉu\n`.ruachen` - Rửa chén kiếm 1,000 VNĐ (45s)' },
+                { name: '🎮 Lệnh chơi', value: '`.cao <tiền>` - Chơi bài cào với bot\n`.cao @nguoi <tiền>` - Thách đấu 1v1 (cược chênh lệch được)\n`.taixiu <tiền>` - Mở bàn tài xỉu' },
+                { name: '💼 Việc làm', value: '`.ruachen` - Rửa chén +1k (45s)\n`.fish` - Câu cá +50~50k (1 phút)\n`.crime` - Đi cướp (10 phút)' },
                 { name: '💰 Lệnh tiền', value: '`.money` - Xem tiền\n`.daily` - Nhận 5k (1h30p)\n`.bank @user <tiền>` - Chuyển tiền\n`.top` - Xem top giàu' },
                 { name: '👑 Admin', value: '`.admin` - Admin nhận 500,000 VNĐ (chỉ Owner)' },
-                { name: '📋 Luật chơi', value: 'Bài cào: Bot/thách đấu cược bằng nhau\nTài Xỉu: 3-10 Xỉu | 11-18 Tài\n45 giây đặt cược' },
                 { name: '💾 Lưu dữ liệu', value: '✅ Tiền tự động lưu vào file\n✅ Không sợ mất khi bot restart' }
             );
         return message.reply({ embeds: [embed] });
@@ -328,6 +343,126 @@ client.on('messageCreate', async (message) => {
         return message.reply({ embeds: [embed] });
     }
 
+    // ========== CÂU CÁ (1 phút cooldown) ==========
+    if (content === '.fish' || content === '.cauca') {
+        const userId = message.author.id;
+        const now = Date.now();
+        const cooldownTime = 60000;
+        
+        if (fishCooldown.has(userId)) {
+            const remaining = cooldownTime - (now - fishCooldown.get(userId));
+            if (remaining > 0) {
+                const seconds = Math.floor(remaining / 1000);
+                return message.reply(`⏰ Bạn vừa câu cá rồi! Hãy đợi **${seconds} giây** nữa!`);
+            }
+        }
+        
+        const roll = Math.random();
+        let caught = fishDatabase[0];
+        let cumulative = 0;
+        
+        for (let fish of fishDatabase) {
+            cumulative += fish.chance;
+            if (roll <= cumulative) {
+                caught = fish;
+                break;
+            }
+        }
+        
+        fishCooldown.set(userId, now);
+        addMoney(userId, caught.value);
+        const money = getMoney(userId);
+        
+        const embed = new EmbedBuilder()
+            .setColor('#00BFFF')
+            .setTitle('🎣 Câu Cá')
+            .setDescription(`${message.author} câu được **${caught.name}**!`)
+            .addFields(
+                { name: '💰 Nhận được', value: `+ **${caught.value.toLocaleString('vi-VN')} VNĐ**` },
+                { name: '💳 Số dư', value: `**${money.toLocaleString('vi-VN')} VNĐ**` }
+            )
+            .setFooter({ text: '⏰ 1 phút nữa câu tiếp!' })
+            .setTimestamp();
+        
+        return message.reply({ embeds: [embed] });
+    }
+
+    // ========== ĐI CƯỚP (10 phút cooldown) ==========
+    if (content === '.crime' || content === '.cuop') {
+        const userId = message.author.id;
+        const now = Date.now();
+        const cooldownTime = 600000;
+        
+        // Kiểm tra tù
+        if (jailUsers.has(userId)) {
+            const jailEnd = jailUsers.get(userId);
+            if (now < jailEnd) {
+                const remaining = Math.floor((jailEnd - now) / 1000);
+                const minutes = Math.floor(remaining / 60);
+                const seconds = remaining % 60;
+                return message.reply(`🚔 Bạn đang bị **tù**! Hãy đợi **${minutes} phút ${seconds} giây** nữa!`);
+            } else {
+                jailUsers.delete(userId);
+            }
+        }
+        
+        // Kiểm tra cooldown
+        if (crimeCooldown.has(userId)) {
+            const remaining = cooldownTime - (now - crimeCooldown.get(userId));
+            if (remaining > 0) {
+                const minutes = Math.floor(remaining / 60000);
+                const seconds = Math.floor((remaining % 60000) / 1000);
+                return message.reply(`⏰ Bạn vừa đi cướp rồi! Hãy đợi **${minutes} phút ${seconds} giây** nữa!`);
+            }
+        }
+        
+        crimeCooldown.set(userId, now);
+        
+        const roll = Math.random() * 100;
+        let resultText = '';
+        let color = '';
+        let amount = 0;
+        
+        if (roll < 50) {
+            // 50% Thành công: +50,000 VNĐ
+            amount = 50000;
+            color = '#00FF00';
+            resultText = '✅ **THÀNH CÔNG!**\n🔫 Bạn cướp được ngân hàng!';
+        } else if (roll < 80) {
+            // 30% Hên xui: +5,000 VNĐ
+            amount = 5000;
+            color = '#FF6600';
+            resultText = '⚠️ **HÊN XUI!**\n😅 Cướp hụt nhưng cũng nhặt được ít tiền lẻ!';
+        } else {
+            // 20% Bị bắt: -3,500 VNĐ + Tù 1 phút
+            amount = -3500;
+            color = '#FF0000';
+            resultText = '🚔 **BỊ BẮT!**\n👮 Cảnh sát đã tóm được bạn!';
+            jailUsers.set(userId, now + 60000);
+        }
+        
+        if (amount > 0) {
+            addMoney(userId, amount);
+        } else {
+            deductMoney(userId, Math.abs(amount));
+        }
+        
+        const money = getMoney(userId);
+        
+        const embed = new EmbedBuilder()
+            .setColor(color)
+            .setTitle('🔫 Đi Cướp')
+            .setDescription(`${message.author} ${resultText}`)
+            .addFields(
+                { name: '💰 Kết quả', value: amount > 0 ? `+ **${amount.toLocaleString('vi-VN')} VNĐ**` : `- **${Math.abs(amount).toLocaleString('vi-VN')} VNĐ**` },
+                { name: '💳 Số dư', value: `**${money.toLocaleString('vi-VN')} VNĐ**` }
+            )
+            .setFooter({ text: amount < 0 && jailUsers.has(userId) ? '🚔 Bị tù 1 phút! | Cooldown 10 phút' : '⏰ 10 phút nữa cướp tiếp!' })
+            .setTimestamp();
+        
+        return message.reply({ embeds: [embed] });
+    }
+
     // ========== ADMIN (Chỉ Owner - Nhận 500,000 VNĐ) ==========
     if (content === '.admin') {
         if (message.author.id !== CONFIG.ownerID) {
@@ -401,43 +536,48 @@ client.on('messageCreate', async (message) => {
         return message.reply({ embeds: [embed] });
     }
 
-    // ========== THÁCH ĐẤU 1V1 (.cao @nguoi <tien>) ==========
+    // ========== THÁCH ĐẤU 1V1 (.cao @nguoi <tien>) - HỖ TRỢ CƯỢC CHÊNH LỆCH ==========
     if (content.startsWith('.cao') && message.mentions.users.size > 0) {
         const args = message.content.split(' ');
         args.shift();
         
         const targetUser = message.mentions.users.first();
         if (!targetUser || targetUser.bot || targetUser.id === message.author.id) {
-            return message.reply('❌ Vui lòng tag **người thật** để thách đấu!\n`.cao @nguoi <tiền_cược>`');
+            return message.reply('❌ Vui lòng tag **người thật** để thách đấu!\n`.cao @nguoi <tiền_cược>`\n💡 Có thể cược chênh lệch!');
         }
         
-        const amount = parseInt(args[args.length - 1]);
-        if (isNaN(amount) || amount < 100) {
+        const myBet = parseInt(args[args.length - 1]);
+        if (isNaN(myBet) || myBet < 100) {
             return message.reply('❌ Cược tối thiểu **100 VNĐ**!\n`.cao @nguoi <tiền_cược>`');
         }
         
-        if (getMoney(message.author.id) < amount) {
+        if (getMoney(message.author.id) < myBet) {
             return message.reply('❌ Bạn không đủ tiền!\n💰 Số dư: **' + getMoney(message.author.id).toLocaleString('vi-VN') + ' VNĐ**');
         }
         
-        if (getMoney(targetUser.id) < amount) {
-            return message.reply('❌ ' + targetUser.username + ' không đủ tiền để đấu!\n💰 Số dư: **' + getMoney(targetUser.id).toLocaleString('vi-VN') + ' VNĐ**');
-        }
-        
-        const challengeKey = message.author.id + '_' + targetUser.id + '_' + amount;
-        const reverseKey = targetUser.id + '_' + message.author.id + '_' + amount;
+        const challengeKey = message.author.id + '_' + targetUser.id;
+        const reverseKey = targetUser.id + '_' + message.author.id;
         
         if (challenges.has(reverseKey)) {
             // Đối phương đã thách đấu → TIẾN HÀNH ĐẤU!
+            const existingChallenge = challenges.get(reverseKey);
             challenges.delete(reverseKey);
             
-            deductMoney(message.author.id, amount);
-            deductMoney(targetUser.id, amount);
+            const p1Bet = existingChallenge.amount; // Người thách đầu
+            const p2Bet = myBet; // Người chấp nhận
             
-            const totalPool = amount * 2;
+            // Kiểm tra tiền người kia
+            if (getMoney(targetUser.id) < p1Bet) {
+                return message.reply('❌ ' + targetUser.username + ' không đủ tiền cược ' + p1Bet.toLocaleString('vi-VN') + ' VNĐ!');
+            }
+            
+            deductMoney(targetUser.id, p1Bet); // Người thách đầu (targetUser là người gửi lời mời)
+            deductMoney(message.author.id, p2Bet); // Người chấp nhận (message.author)
+            
+            const totalPool = p1Bet + p2Bet;
             const game = new CardGame();
-            const p1Cards = game.drawHand(3);
-            const p2Cards = game.drawHand(3);
+            const p1Cards = game.drawHand(3); // targetUser (người thách đầu)
+            const p2Cards = game.drawHand(3); // message.author (người chấp nhận)
             
             const p1Score = calculateScore(p1Cards);
             const p2Score = calculateScore(p2Cards);
@@ -451,20 +591,20 @@ client.on('messageCreate', async (message) => {
             let resultText = '';
             let color = '';
             
-            if (p1Special && !p2Special) { winner = message.author; color = '#FFD700'; resultText = message.author.username + ' THẮNG (Sáp!)'; }
-            else if (!p1Special && p2Special) { winner = targetUser; color = '#FFD700'; resultText = targetUser.username + ' THẮNG (Sáp!)'; }
+            if (p1Special && !p2Special) { winner = targetUser; color = '#FFD700'; resultText = targetUser.username + ' THẮNG (Sáp!)'; }
+            else if (!p1Special && p2Special) { winner = message.author; color = '#FFD700'; resultText = message.author.username + ' THẮNG (Sáp!)'; }
             else if (p1Special && p2Special) {
                 if (p1Special === p2Special) {
-                    if (p1Score > p2Score) { winner = message.author; color = '#FFD700'; resultText = message.author.username + ' THẮNG!'; }
-                    else if (p2Score > p1Score) { winner = targetUser; color = '#FFD700'; resultText = targetUser.username + ' THẮNG!'; }
+                    if (p1Score > p2Score) { winner = targetUser; color = '#FFD700'; resultText = targetUser.username + ' THẮNG!'; }
+                    else if (p2Score > p1Score) { winner = message.author; color = '#FFD700'; resultText = message.author.username + ' THẮNG!'; }
                     else { color = '#FFFF00'; resultText = 'HÒA!'; }
                 } else {
-                    if (p1Special === 'SÁP 🔥') { winner = message.author; color = '#FFD700'; resultText = message.author.username + ' THẮNG (Sáp)!'; }
-                    else { winner = targetUser; color = '#FFD700'; resultText = targetUser.username + ' THẮNG (Sáp)!'; }
+                    if (p1Special === 'SÁP 🔥') { winner = targetUser; color = '#FFD700'; resultText = targetUser.username + ' THẮNG (Sáp)!'; }
+                    else { winner = message.author; color = '#FFD700'; resultText = message.author.username + ' THẮNG (Sáp)!'; }
                 }
             } else {
-                if (p1Score > p2Score) { winner = message.author; color = '#FFD700'; resultText = message.author.username + ' THẮNG!'; }
-                else if (p2Score > p1Score) { winner = targetUser; color = '#FFD700'; resultText = targetUser.username + ' THẮNG!'; }
+                if (p1Score > p2Score) { winner = targetUser; color = '#FFD700'; resultText = targetUser.username + ' THẮNG!'; }
+                else if (p2Score > p1Score) { winner = message.author; color = '#FFD700'; resultText = message.author.username + ' THẮNG!'; }
                 else { color = '#FFFF00'; resultText = 'HÒA!'; }
             }
             
@@ -472,37 +612,37 @@ client.on('messageCreate', async (message) => {
                 addMoney(winner.id, totalPool);
                 resultText += '\n💰 Nhận **' + totalPool.toLocaleString('vi-VN') + ' VNĐ**';
             } else {
-                addMoney(message.author.id, amount);
-                addMoney(targetUser.id, amount);
-                resultText += '\n💰 Hoàn cược **' + amount.toLocaleString('vi-VN') + ' VNĐ** mỗi người';
+                addMoney(targetUser.id, p1Bet);
+                addMoney(message.author.id, p2Bet);
+                resultText += '\n💰 Hoàn cược!';
             }
             
             const embed = new EmbedBuilder()
                 .setColor(color)
                 .setTitle('⚔️ KẾT QUẢ THÁCH ĐẤU!')
-                .setDescription('Cược mỗi người: **' + amount.toLocaleString('vi-VN') + ' VNĐ**\nTổng: **' + totalPool.toLocaleString('vi-VN') + ' VNĐ**')
+                .setDescription(targetUser.username + ' cược: **' + p1Bet.toLocaleString('vi-VN') + ' VNĐ**\n' + message.author.username + ' cược: **' + p2Bet.toLocaleString('vi-VN') + ' VNĐ**\nTổng: **' + totalPool.toLocaleString('vi-VN') + ' VNĐ**')
                 .addFields(
-                    { name: '👤 ' + message.author.username, value: p1Display + '\n' + (p1Special ? '**' + p1Special + '** + ' : '') + getScoreName(p1Score), inline: true },
-                    { name: '👤 ' + targetUser.username, value: p2Display + '\n' + (p2Special ? '**' + p2Special + '** + ' : '') + getScoreName(p2Score), inline: true },
+                    { name: '👤 ' + targetUser.username, value: p1Display + '\n' + (p1Special ? '**' + p1Special + '** + ' : '') + getScoreName(p1Score), inline: true },
+                    { name: '👤 ' + message.author.username, value: p2Display + '\n' + (p2Special ? '**' + p2Special + '** + ' : '') + getScoreName(p2Score), inline: true },
                     { name: '🏆 Kết quả', value: resultText, inline: false }
                 )
-                .setFooter({ text: 'Dùng .cao @nguoi <tien> để thách đấu!' })
+                .setFooter({ text: 'Dùng .cao @nguoi <tien> để thách đấu! Hỗ trợ cược chênh lệch!' })
                 .setTimestamp();
             
             return message.reply({ content: targetUser.toString(), embeds: [embed] });
             
         } else {
             // Tạo thách đấu mới
-            challenges.set(challengeKey, { challenger: message.author.id, target: targetUser.id, amount: amount, time: Date.now() });
+            challenges.set(challengeKey, { challenger: message.author.id, target: targetUser.id, amount: myBet, time: Date.now() });
             
             setTimeout(() => { if (challenges.has(challengeKey)) challenges.delete(challengeKey); }, 60000);
             
             return message.reply(
                 '⚔️ **THÁCH ĐẤU BÀI CÀO!**\n\n' +
                 message.author.toString() + ' muốn đấu với ' + targetUser.toString() + '\n' +
-                '💰 Cược: **' + amount.toLocaleString('vi-VN') + ' VNĐ** mỗi người\n' +
-                '🏆 Tổng: **' + (amount * 2).toLocaleString('vi-VN') + ' VNĐ**\n\n' +
-                '👉 ' + targetUser.toString() + ' gõ: `.cao @' + message.author.username + ' ' + amount + '` để chấp nhận!\n' +
+                '💰 ' + message.author.username + ' cược: **' + myBet.toLocaleString('vi-VN') + ' VNĐ**\n' +
+                '💡 ' + targetUser.username + ' có thể cược số khác!\n\n' +
+                '👉 ' + targetUser.toString() + ' gõ: `.cao @' + message.author.username + ' <tiền_của_bạn>` để chấp nhận!\n' +
                 '⏰ Hết hạn sau **60 giây**!'
             );
         }
@@ -836,12 +976,11 @@ async function shakeTaiXiu(gameMessage, game, row) {
 // ========== LOGIN ==========
 client.login(CONFIG.token).then(() => {
     console.log('🃏 Bot Bài Cào + Tài Xỉu đã sẵn sàng!');
-    console.log('📋 Lệnh: .cao .cao @nguoi .taixiu .ruachen .money .daily .bank .admin .top .help');
+    console.log('📋 Lệnh: .cao .cao @nguoi .taixiu .fish .crime .ruachen .money .daily .bank .admin .top .help');
     console.log('💾 Tự động lưu tiền vào file userdata.json');
-    console.log('⏰ Daily cooldown: 1h30p');
-    console.log('🍽️ Rửa chén cooldown: 45s (+1,000 VNĐ)');
+    console.log('⏰ Daily: 1h30p | Rửa chén: 45s | Cá: 1p | Cướp: 10p');
     console.log('👑 Admin: .admin (+500,000 VNĐ) chỉ Owner');
     console.log('🎲 Tài Xỉu: Nhập cược + nút bấm + 45s đếm ngược');
-    console.log('🃏 Bài Cào: Đánh với bot + Thách đấu 1v1');
-    console.log('⚔️ Thách đấu: .cao @nguoi <tien> - Người kia gõ lại để đấu!');
+    console.log('🃏 Bài Cào: Đánh với bot + Thách đấu 1v1 (cược chênh lệch)');
+    console.log('⚔️ Thách đấu: .cao @nguoi <tien> - Hỗ trợ cược chênh lệch!');
 }).catch(console.error); 
