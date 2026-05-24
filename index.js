@@ -1,5 +1,5 @@
 // =============================================
-// DISCORD BÀI CÀO 3 LÁ + TÀI XỈU BOT
+// DISCORD BÀI CÀO 3 LÁ + TÀI XỈU BOT - FIXED
 // Lệnh: .cao .bank .money .daily .taixiu .top .ruachen .admin | 24/7
 // =============================================
 
@@ -191,7 +191,7 @@ const dailyCooldown = new Map();
 function canUseDaily(userId) {
     const now = Date.now();
     const lastUsed = dailyCooldown.get(userId) || 0;
-    const cooldownTime = 5400000; // 1 giờ 30 phút
+    const cooldownTime = 5400000;
     if (now - lastUsed < cooldownTime) {
         const remaining = cooldownTime - (now - lastUsed);
         const hours = Math.floor(remaining / 3600000);
@@ -208,7 +208,7 @@ const ruaChenCooldown = new Map();
 function canUseRuaChen(userId) {
     const now = Date.now();
     const lastUsed = ruaChenCooldown.get(userId) || 0;
-    const cooldownTime = 45000; // 45 giây
+    const cooldownTime = 45000;
     if (now - lastUsed < cooldownTime) {
         const remaining = cooldownTime - (now - lastUsed);
         const seconds = Math.floor(remaining / 1000);
@@ -238,10 +238,10 @@ client.on('messageCreate', async (message) => {
             .setTitle('🃏 Bot Bài Cào + Tài Xỉu - Hướng Dẫn')
             .setDescription('Chơi bài cào và tài xỉu với bot!')
             .addFields(
-                { name: '🎮 Lệnh chơi', value: '`.cao <tiền_cược>` - Chơi bài cào\n`.taixiu` - Mở bàn tài xỉu (có nút bấm)\n`.ruachen` - Rửa chén kiếm 1,000 VNĐ (45s)' },
+                { name: '🎮 Lệnh chơi', value: '`.cao <tiền_cược>` - Chơi bài cào\n`.taixiu <tiền_cược>` - Mở bàn tài xỉu (có nút bấm)\n`.ruachen` - Rửa chén kiếm 1,000 VNĐ (45s)' },
                 { name: '💰 Lệnh tiền', value: '`.money` - Xem tiền\n`.daily` - Nhận 5k (1h30p dùng 1 lần)\n`.bank <@user> <số_tiền>` - Chuyển tiền\n`.top` - Xem top giàu' },
                 { name: '👑 Admin', value: '`.admin` - Admin nhận 500,000 VNĐ (chỉ Owner)' },
-                { name: '📋 Luật Tài Xỉu', value: 'Xỉu: 3-10 | Tài: 11-18\n45 giây để đặt cược\nCó thể chọn 1 trong 2 hoặc cả 2' },
+                { name: '📋 Luật Tài Xỉu', value: 'Xỉu: 3-10 | Tài: 11-18\n45 giây để đặt cược\nCó thể chọn 1 trong 2 hoặc cả 2\nNhập cược: .taixiu <số_tiền>' },
                 { name: '💾 Lưu dữ liệu', value: '✅ Tiền tự động lưu vào file\n✅ Không sợ mất khi bot restart' }
             );
         return message.reply({ embeds: [embed] });
@@ -397,7 +397,7 @@ client.on('messageCreate', async (message) => {
         return message.reply({ embeds: [embed] });
     }
 
-    // ========== CHƠI BÀI CÀO ==========
+    // ========== CHƠI BÀI CÀO (FIXED - THẮNG NHẬN ĐÚNG TIỀN) ==========
     if (content.startsWith('.cao')) {
         const args = message.content.split(' ');
         const bet = parseInt(args[1]);
@@ -429,37 +429,38 @@ client.on('messageCreate', async (message) => {
         if (playerSpecial && !botSpecial) {
             result = 'THẮNG';
             color = '#FFD700';
-            winAmount = bet * 3;
+            winAmount = bet * 3; // Thắng Sáp: nhận 3x (gồm cả gốc)
         } else if (!playerSpecial && botSpecial) {
             result = 'THUA';
             color = '#FF0000';
-            winAmount = 0;
+            winAmount = 0; // Thua: mất cược
         } else if (playerSpecial && botSpecial) {
             if (playerSpecial === botSpecial) {
                 result = 'HÒA';
                 color = '#FFFF00';
-                winAmount = bet;
+                winAmount = bet; // Hòa: hoàn cược
             } else {
                 result = playerScore > botScore ? 'THẮNG' : 'THUA';
                 color = result === 'THẮNG' ? '#FFD700' : '#FF0000';
-                winAmount = result === 'THẮNG' ? bet * 2 : 0;
+                winAmount = result === 'THẮNG' ? bet * 2 : 0; // Thắng: nhận 2x
             }
         } else {
             if (playerScore > botScore) {
                 result = 'THẮNG';
                 color = '#FFD700';
-                winAmount = bet * 2;
+                winAmount = bet * 2; // Thắng: nhận 2x (gấp đôi)
             } else if (playerScore < botScore) {
                 result = 'THUA';
                 color = '#FF0000';
-                winAmount = 0;
+                winAmount = 0; // Thua: mất cược
             } else {
                 result = 'HÒA';
                 color = '#FFFF00';
-                winAmount = bet;
+                winAmount = bet; // Hòa: hoàn cược
             }
         }
 
+        // FIX: Cộng winAmount (đã bao gồm gốc nếu thắng/hòa)
         addMoney(message.author.id, winAmount);
 
         const embed = new EmbedBuilder()
@@ -476,13 +477,19 @@ client.on('messageCreate', async (message) => {
         return message.reply({ embeds: [embed] });
     }
 
-    // ========== TÀI XỈU ==========
-    if (content === '.taixiu') {
+    // ========== TÀI XỈU (FIXED - NHẬP CƯỢC TÙY CHỈNH) ==========
+    if (content.startsWith('.taixiu')) {
         if (activeTaiXiuGames.has(message.channel.id)) {
             return message.reply('❌ Đã có bàn tài xỉu đang chạy trong kênh này! Đợi kết thúc nhé.');
         }
 
-        const betAmount = 100;
+        const args = message.content.split(' ');
+        let betAmount = parseInt(args[1]);
+        
+        // Nếu không nhập hoặc nhập sai, mặc định 100
+        if (isNaN(betAmount) || betAmount < 100) {
+            betAmount = 100;
+        }
         
         const row = new ActionRowBuilder()
             .addComponents(
@@ -502,13 +509,13 @@ client.on('messageCreate', async (message) => {
             .setColor('#FF6600')
             .setTitle('🎲 BÀN TÀI XỈU')
             .setDescription(
-                '**Đặt cược: 100 VNĐ**\n\n' +
+                `**Đặt cược: ${betAmount.toLocaleString('vi-VN')} VNĐ**\n\n` +
                 '🔴 **TÀI**: 11-18 (x2 tiền)\n' +
                 '🔵 **XỈU**: 3-10 (x2 tiền)\n\n' +
                 '⏰ **45 giây** để đặt cược!\n' +
                 '👤 Người chơi tham gia bấm nút bên dưới'
             )
-            .setFooter({ text: 'Bấm nút để đặt cược | Có thể chọn cả 2!' })
+            .setFooter({ text: `Cược: ${betAmount.toLocaleString('vi-VN')} VNĐ | Bấm nút để đặt cược!` })
             .setTimestamp();
 
         const gameMessage = await message.reply({ embeds: [embed], components: [row] });
@@ -519,6 +526,7 @@ client.on('messageCreate', async (message) => {
             taiPlayers: new Set(),
             xiuPlayers: new Set(),
             bets: new Map(),
+            betAmount: betAmount,
             startTime: Date.now(),
             timeLeft: 45
         };
@@ -536,7 +544,7 @@ client.on('messageCreate', async (message) => {
 
             const updatedEmbed = EmbedBuilder.from(embed)
                 .setDescription(
-                    '**Đặt cược: 100 VNĐ**\n\n' +
+                    `**Đặt cược: ${game.betAmount.toLocaleString('vi-VN')} VNĐ**\n\n` +
                     '🔴 **TÀI**: 11-18 (x2)\n' +
                     '🔵 **XỈU**: 3-10 (x2)\n\n' +
                     `⏰ Còn **${game.timeLeft} giây** để đặt cược!\n` +
@@ -568,8 +576,8 @@ client.on('interactionCreate', async (interaction) => {
         const userId = interaction.user.id;
         
         const money = getMoney(userId);
-        if (money < 100) {
-            return interaction.followUp({ content: `❌ ${interaction.user} không đủ tiền! Cần 100 VNĐ`, ephemeral: true });
+        if (money < game.betAmount) {
+            return interaction.followUp({ content: `❌ ${interaction.user} không đủ tiền! Cần ${game.betAmount.toLocaleString('vi-VN')} VNĐ`, ephemeral: true });
         }
 
         if (interaction.customId === 'tx_tai') {
@@ -592,13 +600,14 @@ client.on('interactionCreate', async (interaction) => {
             }
         }
 
-        interaction.followUp({ content: `✅ ${interaction.user} đã đặt cược!`, ephemeral: true });
+        interaction.followUp({ content: `✅ ${interaction.user} đã đặt cược ${game.betAmount.toLocaleString('vi-VN')} VNĐ!`, ephemeral: true });
     }
 });
 
 // ========== HÀM LẮC TÀI XỈU ==========
 async function shakeTaiXiu(gameMessage, game, row) {
     const channel = gameMessage.channel;
+    const betAmount = game.betAmount;
     
     const disabledRow = new ActionRowBuilder()
         .addComponents(
@@ -652,6 +661,9 @@ async function shakeTaiXiu(gameMessage, game, row) {
         const user = await client.users.fetch(userId).catch(() => null);
         if (!user) continue;
         
+        // Trừ tiền cược
+        deductMoney(userId, betAmount);
+        
         let win = false;
         if (bet === 'both') {
             win = true;
@@ -661,15 +673,14 @@ async function shakeTaiXiu(gameMessage, game, row) {
         
         if (win) {
             if (bet === 'both') {
-                addMoney(userId, 100);
+                addMoney(userId, betAmount); // Hoàn cược
                 resultsText += `✅ ${user.username}: Hoàn cược (đặt cả 2)\n`;
             } else {
-                addMoney(userId, 200);
-                resultsText += `✅ ${user.username}: +200 VNĐ\n`;
+                addMoney(userId, betAmount * 2); // Thắng x2
+                resultsText += `✅ ${user.username}: +${(betAmount * 2).toLocaleString('vi-VN')} VNĐ\n`;
             }
         } else {
-            deductMoney(userId, 100);
-            resultsText += `❌ ${user.username}: -100 VNĐ\n`;
+            resultsText += `❌ ${user.username}: -${betAmount.toLocaleString('vi-VN')} VNĐ\n`;
         }
     }
 
@@ -689,7 +700,7 @@ async function shakeTaiXiu(gameMessage, game, row) {
             `\`\`\``
         )
         .addFields({ name: '📊 Kết quả người chơi', value: resultsText || 'Không có ai' })
-        .setFooter({ text: 'Tài Xỉu Bot | Dùng .taixiu để chơi tiếp' })
+        .setFooter({ text: `Cược: ${betAmount.toLocaleString('vi-VN')} VNĐ | Dùng .taixiu <cược> để chơi tiếp` })
         .setTimestamp();
 
     await gameMessage.edit({ embeds: [resultEmbed], components: [disabledRow] });
@@ -705,6 +716,6 @@ client.login(CONFIG.token).then(() => {
     console.log('⏰ Daily cooldown: 1h30p');
     console.log('🍽️ Rửa chén cooldown: 45s (+1,000 VNĐ)');
     console.log('👑 Admin: .admin (+500,000 VNĐ) chỉ Owner');
-    console.log('🎲 Tài Xỉu: 45s đặt cược + hiệu ứng lắc');
-    console.log('🃏 Emoji bài: Application Emojis (tên không dấu)');
+    console.log('🎲 Tài Xỉu: Nhập cược + nút bấm + 45s đếm ngược');
+    console.log('🃏 Bài Cào: FIX - Thắng nhận đúng tiền (x2, x3)');
 }).catch(console.error); 
