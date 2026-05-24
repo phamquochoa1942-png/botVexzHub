@@ -26,20 +26,20 @@ http.createServer((req, res) => {
     res.end('OK');
 }).listen(CONFIG.port);
 
-// ========== BỘ BÀI APPLICATION EMOJIS (TÊN GỐC CÓ DẤU) ==========
+// ========== BỘ BÀI APPLICATION EMOJIS (TÊN KHÔNG DẤU) ==========
 const boBai = [
-    { id: "2_co", ten: "haitráitim", emojiId: "1508021393621782758", diem: 2 },
-    { id: "3_co", ten: "batráitim", emojiId: "1508021395588911295", diem: 3 },
-    { id: "4_bich", ten: "bốnlábài", emojiId: "1508021397476085840", diem: 4 },
-    { id: "5_bich", ten: "nămlábài", emojiId: "1508021400009707581", diem: 5 },
-    { id: "6_bich", ten: "sáulábài", emojiId: "1508021403281264670", diem: 6 },
-    { id: "7_chuon", ten: "bảycâulạcbộ", emojiId: "1508021405726539836", diem: 7 },
-    { id: "8_co", ten: "támcơ", emojiId: "1508021408029216899", diem: 8 },
-    { id: "9_chuon", ten: "chíncâulạcbộ", emojiId: "1508021410130563193", diem: 9 },
+    { id: "2_co", ten: "haitraitim", emojiId: "1508021393621782758", diem: 2 },
+    { id: "3_co", ten: "batraitim", emojiId: "1508021395588911295", diem: 3 },
+    { id: "4_bich", ten: "bonlabai", emojiId: "1508021397476085840", diem: 4 },
+    { id: "5_bich", ten: "namlabai", emojiId: "1508021400009707581", diem: 5 },
+    { id: "6_bich", ten: "saulabai", emojiId: "1508021403281264670", diem: 6 },
+    { id: "7_chuon", ten: "baycaulacbo", emojiId: "1508021405726539836", diem: 7 },
+    { id: "8_co", ten: "tamco", emojiId: "1508021408029216899", diem: 8 },
+    { id: "9_chuon", ten: "chincaulacbo", emojiId: "1508021410130563193", diem: 9 },
     { id: "10_co", ten: "tenofhearts", emojiId: "1508021412336631889", diem: 10 },
     { id: "J_chuon", ten: "jackofclubs1", emojiId: "1508021414370869289", diem: 10 },
-    { id: "Q_co", ten: "nữhoàngcủatráitim", emojiId: "1508021416501579826", diem: 10 },
-    { id: "K_chuon", ten: "vuacủacáccâulạcbộ", emojiId: "1508021418586017892", diem: 10 }
+    { id: "Q_co", ten: "nuhoangcuatraitim", emojiId: "1508021416501579826", diem: 10 },
+    { id: "K_chuon", ten: "vuacuacaccaulacbo", emojiId: "1508021418586017892", diem: 10 }
 ];
 
 class CardGame {
@@ -706,5 +706,5 @@ client.login(CONFIG.token).then(() => {
     console.log('🍽️ Rửa chén cooldown: 45s (+1,000 VNĐ)');
     console.log('👑 Admin: .admin (+500,000 VNĐ) chỉ Owner');
     console.log('🎲 Tài Xỉu: 45s đặt cược + hiệu ứng lắc');
-    console.log('🃏 Emoji bài: Application Emojis (tên gốc có dấu)');
+    console.log('🃏 Emoji bài: Application Emojis (tên không dấu)');
 }).catch(console.error); 
