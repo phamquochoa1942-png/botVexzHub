@@ -1,6 +1,6 @@
 // =============================================
 // DISCORD BÀI CÀO 3 LÁ + TÀI XỈU BOT - FULL
-// Lệnh: .cao .bank .money .daily .taixiu .top .ruachen .cauca .cuop .xoso .admin | 24/7
+// Lệnh: .cao .bank .money .daily .taixiu .top .ruachen .cauca .cuop .xoso .quayhu .pocker .admin | 24/7
 // Có thách đấu 1v1 (cược chênh lệch) + đánh với bot
 // =============================================
 
@@ -248,7 +248,7 @@ const challenges = new Map();
 client.once('ready', () => {
     console.log(`🤖 ${client.user.tag} - Bot Bài Cào + Tài Xỉu Online!`);
     loadData();
-    client.user.setPresence({ activities: [{ name: '.cao .taixiu .cauca .cuop .xoso | 24/7', type: 'PLAYING' }], status: 'online' });
+    client.user.setPresence({ activities: [{ name: '.cao .taixiu .quayhu .pocker | 24/7', type: 'PLAYING' }], status: 'online' });
 });
 
 client.on('messageCreate', async (message) => {
@@ -259,14 +259,13 @@ client.on('messageCreate', async (message) => {
     if (content === '.help') {
         const embed = new EmbedBuilder()
             .setColor('#FFD700')
-            .setTitle('🃏 Bot Bài Cào + Tài Xỉu - Hướng Dẫn')
-            .setDescription('Chơi bài cào và tài xỉu với bot!')
+            .setTitle('🃏 Bot Casino - Hướng Dẫn')
+            .setDescription('Chơi bài cào, tài xỉu, quay hũ, poker và nhiều hơn nữa!')
             .addFields(
-                { name: '🎮 Lệnh chơi', value: '`.cao <tiền>` - Chơi bài cào với bot\n`.cao @nguoi <tiền>` - Thách đấu 1v1 (cược chênh lệch được)\n`.taixiu <tiền>` - Mở bàn tài xỉu\n`.xoso` - Mua vé xổ số 10k (5p quay)' },
-                { name: '💼 Việc làm', value: '`.ruachen` - Rửa chén +1k (45s)\n`.cauca` - Câu cá +50~50k (1 phút)\n`.cuop` - Đi cướp (10 phút)' },
+                { name: '🎮 Lệnh chơi', value: '`.cao <tiền>` - Chơi bài cào với bot\n`.cao @nguoi <tiền>` - Thách đấu 1v1\n`.taixiu <tiền>` - Mở bàn tài xỉu\n`.quayhu <tiền>` - Quay hũ slot\n`.pocker <tiền>` - Chơi poker 5 lá\n`.xoso` - Mua vé xổ số 10k' },
+                { name: '💼 Việc làm', value: '`.ruachen` - Rửa chén +1k (45s)\n`.cauca` - Câu cá +50~50k (1p)\n`.cuop` - Đi cướp (10p)' },
                 { name: '💰 Lệnh tiền', value: '`.money` - Xem tiền\n`.daily` - Nhận 5k (1h30p)\n`.bank @user <tiền>` - Chuyển tiền\n`.top` - Xem top giàu' },
-                { name: '👑 Admin', value: '`.admin` - Admin nhận 500,000 VNĐ (chỉ Owner)' },
-                { name: '💾 Lưu dữ liệu', value: '✅ Tiền tự động lưu vào file\n✅ Không sợ mất khi bot restart' }
+                { name: '👑 Admin', value: '`.admin` - Admin nhận 500k (chỉ Owner)' }
             );
         return message.reply({ embeds: [embed] });
     }
@@ -398,7 +397,6 @@ client.on('messageCreate', async (message) => {
         const now = Date.now();
         const cooldownTime = 600000;
         
-        // Kiểm tra tù
         if (jailUsers.has(userId)) {
             const jailEnd = jailUsers.get(userId);
             if (now < jailEnd) {
@@ -411,7 +409,6 @@ client.on('messageCreate', async (message) => {
             }
         }
         
-        // Kiểm tra cooldown
         if (crimeCooldown.has(userId)) {
             const remaining = cooldownTime - (now - crimeCooldown.get(userId));
             if (remaining > 0) {
@@ -597,6 +594,161 @@ client.on('messageCreate', async (message) => {
         return;
     }
 
+    // ========== QUAY HŨ SLOT (.quayhu <tiền>) ==========
+    if (content.startsWith('.quayhu')) {
+        const args = message.content.split(' ');
+        const bet = parseInt(args[1]);
+        
+        if (isNaN(bet) || bet < 100) {
+            return message.reply('❌ Cược tối thiểu **100 VNĐ**!\n`.quayhu <số_tiền>`');
+        }
+        
+        if (getMoney(message.author.id) < bet) {
+            return message.reply('❌ Không đủ tiền!\n💰 Số dư: **' + getMoney(message.author.id).toLocaleString('vi-VN') + ' VNĐ**');
+        }
+        
+        deductMoney(message.author.id, bet);
+        
+        const slotEmojis = ['🍒', '🍋', '🍊', '🔔', '⭐', '💎', '7️⃣'];
+        const s1 = slotEmojis[Math.floor(Math.random() * slotEmojis.length)];
+        const s2 = slotEmojis[Math.floor(Math.random() * slotEmojis.length)];
+        const s3 = slotEmojis[Math.floor(Math.random() * slotEmojis.length)];
+        
+        let multiplier = 0;
+        let resultText = '';
+        let color = '#FF0000';
+        
+        if (s1 === '7️⃣' && s2 === '7️⃣' && s3 === '7️⃣') { multiplier = 50; resultText = '🎉 JACKPOT! 3 SỐ 7!'; color = '#FFD700'; }
+        else if (s1 === '💎' && s2 === '💎' && s3 === '💎') { multiplier = 25; resultText = '💎 3 KIM CƯƠNG!'; color = '#00BFFF'; }
+        else if (s1 === '⭐' && s2 === '⭐' && s3 === '⭐') { multiplier = 10; resultText = '⭐ 3 SAO!'; color = '#FFFF00'; }
+        else if (s1 === s2 && s2 === s3) { multiplier = 5; resultText = '✨ 3 BIỂU TƯỢNG GIỐNG NHAU!'; color = '#00FF00'; }
+        else if (s1 === s2 || s2 === s3 || s1 === s3) { multiplier = 2; resultText = '👍 2 BIỂU TƯỢNG GIỐNG!'; color = '#FF6600'; }
+        else { resultText = '😢 KHÔNG TRÙNG!'; }
+        
+        const winAmount = bet * multiplier;
+        if (winAmount > 0) addMoney(message.author.id, winAmount);
+        
+        const embed = new EmbedBuilder()
+            .setColor(color)
+            .setTitle('🎰 QUAY HŨ SLOT')
+            .setDescription(`Cược: **${bet.toLocaleString('vi-VN')} VNĐ**\n\n┌────┬────┬────┐\n│ ${s1}  │ ${s2}  │ ${s3}  │\n└────┴────┴────┘`)
+            .addFields(
+                { name: '📊 Kết quả', value: resultText },
+                { name: '💰 Tiền', value: winAmount > 0 ? `+ **${winAmount.toLocaleString('vi-VN')} VNĐ** (x${multiplier})` : `- **${bet.toLocaleString('vi-VN')} VNĐ**` },
+                { name: '💳 Số dư', value: `**${getMoney(message.author.id).toLocaleString('vi-VN')} VNĐ**` }
+            )
+            .setFooter({ text: 'Dùng .quayhu <tiền> để chơi tiếp!' })
+            .setTimestamp();
+        
+        return message.reply({ embeds: [embed] });
+    }
+
+    // ========== POKER 5 LÁ (.pocker <tiền>) ==========
+    if (content.startsWith('.pocker')) {
+        const args = message.content.split(' ');
+        const bet = parseInt(args[1]);
+        
+        if (isNaN(bet) || bet < 100) {
+            return message.reply('❌ Cược tối thiểu **100 VNĐ**!\n`.pocker <số_tiền>`');
+        }
+        
+        if (getMoney(message.author.id) < bet) {
+            return message.reply('❌ Không đủ tiền!\n💰 Số dư: **' + getMoney(message.author.id).toLocaleString('vi-VN') + ' VNĐ**');
+        }
+        
+        deductMoney(message.author.id, bet);
+        
+        // Tạo bộ bài poker
+        const suits = ['♠', '♥', '♦', '♣'];
+        const values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+        const deck = [];
+        for (let suit of suits) {
+            for (let value of values) {
+                deck.push({ suit, value });
+            }
+        }
+        // Xáo bài
+        for (let i = deck.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [deck[i], deck[j]] = [deck[j], deck[i]];
+        }
+        
+        const playerHand = deck.slice(0, 5);
+        const botHand = deck.slice(5, 10);
+        
+        function getPokerRank(hand) {
+            const vals = hand.map(c => values.indexOf(c.value));
+            const suits = hand.map(c => c.suit);
+            vals.sort((a, b) => a - b);
+            
+            const isFlush = new Set(suits).size === 1;
+            const isStraight = vals[4] - vals[0] === 4 && new Set(vals).size === 5;
+            const counts = {};
+            vals.forEach(v => counts[v] = (counts[v] || 0) + 1);
+            const countValues = Object.values(counts).sort((a, b) => b - a);
+            
+            if (isFlush && isStraight) return { rank: 8, name: '🏆 Thùng Phá Sảnh' };
+            if (countValues[0] === 4) return { rank: 7, name: '👑 Tứ Quý' };
+            if (countValues[0] === 3 && countValues[1] === 2) return { rank: 6, name: '🏠 Cù Lũ' };
+            if (isFlush) return { rank: 5, name: '🌈 Thùng' };
+            if (isStraight) return { rank: 4, name: '➡️ Sảnh' };
+            if (countValues[0] === 3) return { rank: 3, name: '🔺 Xám' };
+            if (countValues[0] === 2 && countValues[1] === 2) return { rank: 2, name: '👫 2 Đôi' };
+            if (countValues[0] === 2) return { rank: 1, name: '👤 1 Đôi' };
+            return { rank: 0, name: '📄 Mậu Thầu' };
+        }
+        
+        const playerRank = getPokerRank(playerHand);
+        const botRank = getPokerRank(botHand);
+        
+        const playerDisplay = playerHand.map(c => `${c.suit}${c.value}`).join(' ');
+        const botDisplay = botHand.map(c => `${c.suit}${c.value}`).join(' ');
+        
+        let multiplier = 0;
+        let resultText = '';
+        let color = '#FF0000';
+        
+        if (playerRank.rank > botRank.rank) {
+            color = '#00FF00';
+            resultText = '✅ THẮNG!';
+            if (playerRank.rank === 8) multiplier = 100;
+            else if (playerRank.rank === 7) multiplier = 50;
+            else if (playerRank.rank === 6) multiplier = 20;
+            else if (playerRank.rank === 5) multiplier = 10;
+            else if (playerRank.rank === 4) multiplier = 7;
+            else if (playerRank.rank === 3) multiplier = 5;
+            else if (playerRank.rank === 2) multiplier = 3;
+            else if (playerRank.rank === 1) multiplier = 2;
+            else multiplier = 0;
+        } else if (playerRank.rank < botRank.rank) {
+            color = '#FF0000';
+            resultText = '❌ THUA!';
+        } else {
+            color = '#FFFF00';
+            resultText = '🤝 HÒA!';
+            multiplier = 1;
+        }
+        
+        const winAmount = bet * multiplier;
+        if (winAmount > 0) addMoney(message.author.id, winAmount);
+        
+        const embed = new EmbedBuilder()
+            .setColor(color)
+            .setTitle('🃏 POKER 5 LÁ')
+            .setDescription(`Cược: **${bet.toLocaleString('vi-VN')} VNĐ**`)
+            .addFields(
+                { name: `👤 ${message.author.username}`, value: `${playerDisplay}\n**${playerRank.name}**`, inline: true },
+                { name: `🤖 Bot`, value: `${botDisplay}\n**${botRank.name}**`, inline: true },
+                { name: '📊 Kết quả', value: resultText },
+                { name: '💰 Tiền', value: winAmount > 0 ? `+ **${winAmount.toLocaleString('vi-VN')} VNĐ** (x${multiplier})` : `- **${bet.toLocaleString('vi-VN')} VNĐ**` },
+                { name: '💳 Số dư', value: `**${getMoney(message.author.id).toLocaleString('vi-VN')} VNĐ**` }
+            )
+            .setFooter({ text: 'Dùng .pocker <tiền> để chơi tiếp!' })
+            .setTimestamp();
+        
+        return message.reply({ embeds: [embed] });
+    }
+
     // ========== ADMIN (Chỉ Owner - Nhận 500,000 VNĐ) ==========
     if (content === '.admin') {
         if (message.author.id !== CONFIG.ownerID) {
@@ -664,7 +816,7 @@ client.on('messageCreate', async (message) => {
                 { name: `💰 ${message.author.username}`, value: `Còn: **${senderMoney.toLocaleString('vi-VN')} VNĐ**`, inline: true },
                 { name: `💰 ${targetUser.username}`, value: `Có: **${receiverMoney.toLocaleString('vi-VN')} VNĐ**`, inline: true }
             )
-            .setFooter({ text: '🏦 Ngân hàng Bot Bài Cào | Tự động lưu' })
+            .setFooter({ text: '🏦 Ngân hàng Bot Casino | Tự động lưu' })
             .setTimestamp();
         
         return message.reply({ embeds: [embed] });
@@ -1106,12 +1258,8 @@ async function shakeTaiXiu(gameMessage, game, row) {
 
 // ========== LOGIN ==========
 client.login(CONFIG.token).then(() => {
-    console.log('🃏 Bot Bài Cào + Tài Xỉu đã sẵn sàng!');
-    console.log('📋 Lệnh: .cao .cao @nguoi .taixiu .cauca .cuop .xoso .ruachen .money .daily .bank .admin .top .help');
+    console.log('🃏 Bot Casino đã sẵn sàng!');
+    console.log('📋 Lệnh: .cao .cao @nguoi .taixiu .quayhu .pocker .cauca .cuop .xoso .ruachen .money .daily .bank .admin .top .help');
     console.log('💾 Tự động lưu tiền vào file userdata.json');
-    console.log('⏰ Daily: 1h30p | Rửa chén: 45s | Câu cá: 1p | Cướp: 10p | Xổ số: 5p');
-    console.log('👑 Admin: .admin (+500,000 VNĐ) chỉ Owner');
-    console.log('🎲 Tài Xỉu: Nhập cược + nút bấm + 45s đếm ngược');
-    console.log('🃏 Bài Cào: Đánh với bot + Thách đấu 1v1 (cược chênh lệch)');
-    console.log('🎫 Xổ Số: .xoso - Mua vé 10k, quay mỗi 5 phút!');
+    console.log('🎰 Quay Hũ: .quayhu <tiền> | 🃏 Poker: .pocker <tiền>');
 }).catch(console.error); 
